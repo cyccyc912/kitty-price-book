@@ -3,10 +3,12 @@
    ------------------------------------------------------------
    用法： node tools/e2e-edge.js [baseUrl]
    覆盖：兼容模式降级、草稿恢复、连点防重、价格解析、复制、
+         单卖项（迁移 / 上限 / 默认名 / 逐项复制）、
          自定义尺码标签、转义安全、大数据量、软键盘适配等
    ============================================================ */
 'use strict';
 
+const fs = require('fs');
 const path = require('path');
 const { launch, sleep, createReporter } = require('./cdp-harness');
 
@@ -167,10 +169,10 @@ const BASE = process.argv[2] || 'http://127.0.0.1:8899/index.html';
     check('复制售价格式正确', copyPrice === '售价 ¥150', copyPrice);
 
     const copySingleDisabled = await cdp.eval(`(() => {
-      // 不可单卖且无单卖价 → 按钮应为禁用
+      // 不可单卖且没有任何单卖项 → 按钮应为禁用
       return document.getElementById('d-copy-single').disabled;
     })()`);
-    check('无单卖价时「复制单卖价」按钮禁用', copySingleDisabled === true);
+    check('无单卖项时「复制单卖价」按钮禁用', copySingleDisabled === true);
 
     await cdp.eval(`document.querySelector('#sheet-detail [data-close]').click(); 'ok'`);
     await sleep(400);
@@ -310,7 +312,11 @@ const BASE = process.argv[2] || 'http://127.0.0.1:8899/index.html';
       const n=document.getElementById('f-name'); n.value='大图商品'; n.dispatchEvent(new Event('input',{bubbles:true}));
       const p=document.getElementById('f-price'); p.value='399'; p.dispatchEvent(new Event('input',{bubbles:true}));
       document.querySelector('#f-mode .seg__item[data-mode="single"]').click();
-      const s=document.getElementById('f-single'); s.value='159'; s.dispatchEvent(new Event('input',{bubbles:true}));
+      const row = document.querySelector('#f-single-list .single-row');
+      const rn = row.querySelector('[data-single="name"]');
+      const rp = row.querySelector('[data-single="price"]');
+      rn.value='外套'; rn.dispatchEvent(new Event('input',{bubbles:true}));
+      rp.value='159'; rp.dispatchEvent(new Event('input',{bubbles:true}));
       return 'ok';
     })()`);
     await sleep(200);
@@ -340,6 +346,230 @@ const BASE = process.argv[2] || 'http://127.0.0.1:8899/index.html';
     }))()`);
     check('编辑时删除图片会真正清理数据',
       imgCleared.images === 0 && imgCleared.cardHasImg === false, JSON.stringify(imgCleared));
+
+    // ---------- 单卖项：旧数据迁移 / 上限 / 默认名 / 逐项复制 ----------
+    await cdp.eval(`(async () => {
+      const rows = await window.DB.allProducts();
+      for (const r of rows) { await window.DB.deleteProduct(r.id); }
+      await window.DB.setMeta('draft', null);
+      return 'ok';
+    })()`);
+
+    // 1) 旧格式（只有 singlePrice）导入后应自动变成一条「单卖」项
+    const legacy = await cdp.eval(`(async () => {
+      // 直接写一条旧格式记录，绕过 normalize，模拟历史备份
+      await window.DB.putProduct({
+        id: 'legacy-1', name: '旧格式商品', code: 'OLD1', price: 200,
+        singlePrice: 88, singleMode: 'single', sizes: ['M'], tags: ['旧数据'], note: '',
+        hasImage: false, createdAt: Date.now(), updatedAt: Date.now()
+      });
+      return 'ok';
+    })()`);
+    await cdp.send('Page.navigate', { url: BASE });
+    await sleep(2200);
+    const migrated = await cdp.eval(`(() => {
+      const c=[...document.querySelectorAll('#p-list .card')].find(x=>x.textContent.includes('旧格式'));
+      return c ? c.textContent.replace(/\\s+/g,' ').trim() : null;
+    })()`);
+    check('旧格式 singlePrice 自动迁移为一条单卖项',
+      migrated && migrated.includes('单卖 ¥88'), migrated);
+
+    await cdp.eval(`(() => { const c=[...document.querySelectorAll('#p-list .card')].find(x=>x.textContent.includes('旧格式')); c.click(); return 'ok'; })()`);
+    await sleep(700);
+    const migratedDetail = await cdp.eval(`document.querySelector('#d-body').textContent.replace(/\\s+/g,' ')`);
+    check('迁移后的单卖项显示为「单卖」', migratedDetail.includes('单卖明细') && migratedDetail.includes('单卖¥88'),
+      migratedDetail.slice(0, 140));
+    await cdp.eval(`document.querySelector('#sheet-detail [data-close]').click(); 'ok'`);
+    await sleep(400);
+
+    // 2) 最多 6 条
+    await cdp.eval(`document.getElementById('fab').click(); 'ok'`);
+    await sleep(500);
+    await cdp.eval(`(() => {
+      const n=document.getElementById('f-name'); n.value='上限测试'; n.dispatchEvent(new Event('input',{bubbles:true}));
+      const p=document.getElementById('f-price'); p.value='500'; p.dispatchEvent(new Event('input',{bubbles:true}));
+      document.querySelector('#f-mode .seg__item[data-mode="single"]').click();
+      for (let i = 0; i < 10; i++) document.getElementById('f-single-add').click();
+      return 'ok';
+    })()`);
+    await sleep(600);
+    const limitState = await cdp.eval(`(() => ({
+      rows: document.querySelectorAll('#f-single-list .single-row').length,
+      addDisabled: document.getElementById('f-single-add').disabled,
+      label: document.querySelector('#f-single-add .single-add__label').textContent.trim()
+    }))()`);
+    check('单卖项最多 6 条', limitState.rows === 6, JSON.stringify(limitState));
+    check('达到上限后按钮禁用并提示', limitState.addDisabled === true && limitState.label.includes('6'), limitState.label);
+
+    // 3) 名称为空时默认显示「单卖」
+    await cdp.eval(`(() => {
+      const rows = document.querySelectorAll('#f-single-list .single-row');
+      const r = rows[0];
+      r.querySelector('[data-single="price"]').value = '77';
+      r.querySelector('[data-single="price"]').dispatchEvent(new Event('input',{bubbles:true}));
+      // 名称故意不填
+      return 'ok';
+    })()`);
+    await sleep(300);
+    await cdp.eval(`document.getElementById('f-save').click(); 'ok'`);
+    await sleep(1400);
+    const named = await cdp.eval(`(async () => {
+      const rows = await window.DB.allProducts();
+      const p = rows.find(r => r.name === '上限测试');
+      return p ? p.singleItems : null;
+    })()`);
+    check('名称留空时单卖项按「单卖」存储', named && named.length === 1 && named[0].name === '' && named[0].price === 77,
+      JSON.stringify(named));
+
+    const cardNamed = await cdp.eval(`(() => {
+      const c=[...document.querySelectorAll('#p-list .card')].find(x=>x.textContent.includes('上限测试'));
+      return c.textContent.replace(/\\s+/g,' ').trim();
+    })()`);
+    check('只有一条单卖项时列表不显示「起」', cardNamed.includes('单卖 ¥77') && !cardNamed.includes('起'), cardNamed);
+
+    // 4) 名为空的项在详情页显示为「单卖」，且可逐项复制
+    await cdp.eval(`(() => { const c=[...document.querySelectorAll('#p-list .card')].find(x=>x.textContent.includes('上限测试')); c.click(); return 'ok'; })()`);
+    await sleep(700);
+    const defaultName = await cdp.eval(`(() => {
+      const el = document.querySelector('#d-body .single-detail__name');
+      return el ? el.textContent : null;
+    })()`);
+    check('详情页空名称显示为「单卖」', defaultName === '单卖', defaultName);
+
+    const itemCopy = await cdp.eval(`(async () => {
+      let captured=null;
+      const orig = navigator.clipboard.writeText.bind(navigator.clipboard);
+      navigator.clipboard.writeText = (t)=>{captured=t; return orig(t);};
+      document.querySelector('#d-body [data-copy-item]').click();
+      await new Promise(r=>setTimeout(r,400));
+      return captured;
+    })()`);
+    check('可以逐项复制单卖价格', itemCopy === '单卖 ¥77', itemCopy);
+
+    // 5) 多条时「复制单卖价」按钮一次复制全部明细
+    await cdp.eval(`document.querySelector('#sheet-detail [data-close]').click(); 'ok'`);
+    await sleep(400);
+    await cdp.eval(`(() => { const c=[...document.querySelectorAll('#p-list .card')].find(x=>x.textContent.includes('旧格式')); c.click(); return 'ok'; })()`);
+    await sleep(600);
+    await cdp.eval(`document.querySelector('#sheet-detail [data-close]').click(); 'ok'`);
+    await sleep(400);
+
+    // 构造一个三项单卖的商品
+    await cdp.eval(`document.getElementById('fab').click(); 'ok'`);
+    await sleep(500);
+    await cdp.eval(`(() => {
+      const n=document.getElementById('f-name'); n.value='三件套测试'; n.dispatchEvent(new Event('input',{bubbles:true}));
+      const p=document.getElementById('f-price'); p.value='268'; p.dispatchEvent(new Event('input',{bubbles:true}));
+      document.querySelector('#f-mode .seg__item[data-mode="single"]').click();
+      return 'ok';
+    })()`);
+    await sleep(300);
+    const trioNames = ['上衣', '裤子', '内搭'];
+    const trioPrices = ['99', '89', '49'];
+    for (let i = 0; i < 3; i++) {
+      await cdp.eval(`(() => {
+        if (document.querySelectorAll('#f-single-list .single-row').length < ${i + 1}) {
+          document.getElementById('f-single-add').click();
+        }
+        return 'ok';
+      })()`);
+      await sleep(300);
+      await cdp.eval(`(() => {
+        const r = document.querySelectorAll('#f-single-list .single-row')[${i}];
+        const n = r.querySelector('[data-single="name"]');
+        const p = r.querySelector('[data-single="price"]');
+        n.value = ${JSON.stringify(trioNames[i])}; n.dispatchEvent(new Event('input',{bubbles:true}));
+        p.value = ${JSON.stringify(trioPrices[i])}; p.dispatchEvent(new Event('input',{bubbles:true}));
+        return 'ok';
+      })()`);
+      await sleep(250);
+    }
+    await cdp.eval(`document.getElementById('f-save').click(); 'ok'`);
+    await sleep(1500);
+
+    const trioCard = await cdp.eval(`(() => {
+      const c=[...document.querySelectorAll('#p-list .card')].find(x=>x.textContent.includes('三件套'));
+      return c ? c.textContent.replace(/\\s+/g,' ').trim() : null;
+    })()`);
+    check('三件套卡片显示「¥49 起 · 3 项可单卖」',
+      trioCard && trioCard.includes('单卖 ¥49 起') && trioCard.includes('3 项可单卖'), trioCard);
+
+    await cdp.eval(`(() => { const c=[...document.querySelectorAll('#p-list .card')].find(x=>x.textContent.includes('三件套')); c.click(); return 'ok'; })()`);
+    await sleep(800);
+    const trioDetail = await cdp.eval(`(() => {
+      const rows=[...document.querySelectorAll('#d-body .single-detail__row')].map(r=>({
+        name: r.querySelector('.single-detail__name').textContent,
+        price: r.querySelector('.single-detail__price').textContent
+      }));
+      const sum = document.querySelector('#d-body .single-detail__sum');
+      return { rows, sum: sum ? sum.textContent : null, body: document.getElementById('d-body').textContent.replace(/\\s+/g,' ') };
+    })()`);
+    check('详情页逐项列出三个单卖项',
+      trioDetail.rows.length === 3 &&
+      trioDetail.rows[0].name === '上衣' && trioDetail.rows[0].price === '¥99' &&
+      trioDetail.rows[1].name === '裤子' && trioDetail.rows[1].price === '¥89' &&
+      trioDetail.rows[2].name === '内搭' && trioDetail.rows[2].price === '¥49',
+      JSON.stringify(trioDetail.rows));
+    check('详情页显示单卖合计', trioDetail.sum && trioDetail.sum.includes('合计 ¥237'), trioDetail.sum);
+    check('详情页单卖汇总显示最低价起', trioDetail.body.includes('¥49 起'), trioDetail.body.slice(0, 100));
+
+    const multiCopy = await cdp.eval(`(async () => {
+      let captured=null;
+      const orig = navigator.clipboard.writeText.bind(navigator.clipboard);
+      navigator.clipboard.writeText = (t)=>{captured=t; return orig(t);};
+      document.getElementById('d-copy-single').click();
+      await new Promise(r=>setTimeout(r,400));
+      return captured;
+    })()`);
+    check('多条时一次复制全部单卖明细',
+      multiCopy && multiCopy.includes('上衣 ¥99') && multiCopy.includes('裤子 ¥89') && multiCopy.includes('内搭 ¥49'),
+      (multiCopy || '').replace(/\n/g, ' | '));
+
+    const allCopy = await cdp.eval(`(async () => {
+      let captured=null;
+      const orig = navigator.clipboard.writeText.bind(navigator.clipboard);
+      navigator.clipboard.writeText = (t)=>{captured=t; return orig(t);};
+      document.getElementById('d-copy-all').click();
+      await new Promise(r=>setTimeout(r,400));
+      return captured;
+    })()`);
+    check('复制全部信息包含单卖明细', allCopy && allCopy.includes('· 上衣 ¥99') && allCopy.includes('· 内搭 ¥49'),
+      (allCopy || '').replace(/\n/g, ' | '));
+
+    await cdp.send('Page.captureScreenshot', {}).then(async (r) => {
+      fs.writeFileSync(path.join(shotsDir, 'edge-single-items.png'), Buffer.from(r.data, 'base64'));
+    });
+
+    // 6) 删除单卖项
+    await cdp.eval(`document.getElementById('d-edit').click(); 'ok'`);
+    await sleep(800);
+    const beforeDel = await cdp.eval(`document.querySelectorAll('#f-single-list .single-row').length`);
+    await cdp.eval(`(() => {
+      const btns = document.querySelectorAll('#f-single-list [data-single-del]');
+      btns[btns.length - 1].click();
+      return 'ok';
+    })()`);
+    await sleep(400);
+    const afterDel = await cdp.eval(`document.querySelectorAll('#f-single-list .single-row').length`);
+    check('可以删除单卖项', beforeDel === 3 && afterDel === 2, beforeDel + ' -> ' + afterDel);
+
+    await cdp.eval(`document.getElementById('f-save').click(); 'ok'`);
+    await sleep(1300);
+    const afterDelSave = await cdp.eval(`(async () => {
+      const rows = await window.DB.allProducts();
+      const p = rows.find(r => r.name === '三件套测试');
+      return p ? p.singleItems.map(x=>x.name) : null;
+    })()`);
+    check('删除后保存生效', afterDelSave && afterDelSave.join(',') === '上衣,裤子', JSON.stringify(afterDelSave));
+
+    await cdp.eval(`(async () => {
+      const rows = await window.DB.allProducts();
+      for (const r of rows) { await window.DB.deleteProduct(r.id); }
+      await window.DB.setMeta('draft', null);
+      return 'ok';
+    })()`);
+    await cdp.send('Page.navigate', { url: BASE });
+    await sleep(2000);
 
     // ---------- 重复标签 / 尺码去重 ----------
     // 注意：每次点击后 chip 会重新渲染，必须重新查询节点
@@ -407,13 +637,20 @@ const BASE = process.argv[2] || 'http://127.0.0.1:8899/index.html';
       JSON.stringify(customStored));
 
     // ---------- 大数据量性能 ----------
+    // 先清空，保证批量测试的基数确定
+    await cdp.eval(`(async () => {
+      const rows = await window.DB.allProducts();
+      for (const r of rows) { await window.DB.deleteProduct(r.id); }
+      return 'ok';
+    })()`);
     const bulk = await cdp.eval(`(async () => {
       const now = Date.now();
       const list = [];
       for (let i = 0; i < 300; i++) {
         list.push({
           id: 'bulk-' + i, name: '批量商品' + i, code: 'B' + (1000 + i),
-          price: 50 + (i % 200), singlePrice: i % 3 === 0 ? 30 + (i % 50) : null,
+          price: 50 + (i % 200),
+          singleItems: i % 3 === 0 ? [{ name: '上衣', price: 30 + (i % 50) }] : [],
           singleMode: ['single','no','set','ask'][i % 4],
           sizes: [['S','M'],['M','L'],['均码'],['XL']][i % 4],
           tags: [['夏款'],['冬款'],['爆款'],['清仓']][i % 4],
@@ -435,7 +672,7 @@ const BASE = process.argv[2] || 'http://127.0.0.1:8899/index.html';
         renderMs: Math.round(performance.now() - t0)
       };
     })()`);
-    check('300 件商品能正常加载', perf.cards === 300 || perf.total === '302',
+    check('300 件商品能正常加载', perf.cards === 300 && perf.total === '300',
       JSON.stringify({ cards: perf.cards, total: perf.total, writeMs: bulk.writeMs }));
 
     const searchPerf = await cdp.eval(`(async () => {
@@ -525,8 +762,12 @@ const BASE = process.argv[2] || 'http://127.0.0.1:8899/index.html';
       const set=(id,v)=>{const el=document.getElementById(id);el.value=v;el.dispatchEvent(new Event('input',{bubbles:true}));};
       set('f-name','兼容模式商品');
       set('f-price','188');
-      set('f-single','78');
       document.querySelector('#f-mode .seg__item[data-mode="single"]').click();
+      const row = document.querySelector('#f-single-list .single-row');
+      const rn = row.querySelector('[data-single="name"]');
+      const rp = row.querySelector('[data-single="price"]');
+      rn.value='上衣'; rn.dispatchEvent(new Event('input',{bubbles:true}));
+      rp.value='78'; rp.dispatchEvent(new Event('input',{bubbles:true}));
       document.querySelector('#f-size-chips .chip[data-size="M"]').click();
       return 'ok';
     })()`);

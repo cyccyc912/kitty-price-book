@@ -113,6 +113,7 @@
     formImageCleared: false,
     formSizes: [],
     formTags: [],
+    formSingleItems: [],
     customSizes: [],
     customTags: [],
     lastBackupAt: 0,
@@ -376,6 +377,60 @@
   /* ============================================================
      商品 CRUD
      ============================================================ */
+
+  var MAX_SINGLE_ITEMS = 6;   // 一件商品最多几条单卖项
+
+  /**
+   * 规整单卖项数组。
+   * 每项形如 { name: '上衣', price: 89 }，名称为空时自动补「单卖」。
+   * 价格无效的项会被丢弃；同一名称只保留第一条。
+   */
+  function normalizeSingleItems(list, fallbackPrice) {
+    var out = [];
+    if (Array.isArray(list)) {
+      list.forEach(function (raw) {
+        if (raw == null) return;
+        var item = (typeof raw === 'object') ? raw : { price: raw };
+        var price = parsePrice(item.price);
+        if (price == null) return;                       // 没价格的不算一项
+        var name = String(item.name == null ? '' : item.name).trim().slice(0, 12);
+        out.push({ name: name, price: price });
+      });
+    }
+    // 兼容旧格式：只有一个 singlePrice 的老数据，自动转成一条「单卖」项
+    if (!out.length && fallbackPrice != null) {
+      var legacy = parsePrice(fallbackPrice);
+      if (legacy != null) out.push({ name: '', price: legacy });
+    }
+    // 同名去重（名称留空视为「单卖」，只留一条）
+    var seen = {};
+    out = out.filter(function (it) {
+      var key = (it.name || '单卖').toLowerCase();
+      if (seen[key]) return false;
+      seen[key] = 1;
+      return true;
+    });
+    return out.slice(0, MAX_SINGLE_ITEMS);
+  }
+
+  /** 单卖项显示名：空名称统一显示为「单卖」 */
+  function singleItemLabel(item) {
+    var n = String((item && item.name) || '').trim();
+    return n || '单卖';
+  }
+
+  /** 取最低单卖价，没有单卖项时返回 null */
+  function lowestSinglePrice(p) {
+    var items = (p && p.singleItems) || [];
+    if (!items.length) return null;
+    var min = null;
+    items.forEach(function (it) {
+      if (it.price == null) return;
+      if (min == null || it.price < min) min = it.price;
+    });
+    return min;
+  }
+
   function normalizeProduct(raw) {
     var mode = MODES[raw.singleMode] ? raw.singleMode : 'ask';
     var p = {
@@ -383,7 +438,7 @@
       name: String(raw.name || '').trim(),
       code: String(raw.code || '').trim(),
       price: parsePrice(raw.price),
-      singlePrice: parsePrice(raw.singlePrice),
+      singleItems: normalizeSingleItems(raw.singleItems, raw.singlePrice),
       singleMode: mode,
       sizes: Array.isArray(raw.sizes) ? uniq(raw.sizes) : [],
       tags: Array.isArray(raw.tags) ? uniq(raw.tags) : [],
@@ -392,7 +447,6 @@
       createdAt: raw.createdAt || Date.now(),
       updatedAt: raw.updatedAt || Date.now()
     };
-    // 只有"可单卖"才保留单卖价；其余状态若填了也保留（用户可能先填后改）
     return p;
   }
 
@@ -567,8 +621,11 @@
     }
 
     var singleHtml = '';
-    if (p.singlePrice != null) {
-      singleHtml = '<span class="price-single">单卖 ¥' + fmtMoney(p.singlePrice) + '</span>';
+    var items = p.singleItems || [];
+    if (items.length) {
+      var low = lowestSinglePrice(p);
+      var suffix = items.length > 1 ? (' 起 · ' + items.length + ' 项可单卖') : '';
+      singleHtml = '<span class="price-single">单卖 ¥' + fmtMoney(low) + suffix + '</span>';
     } else if (p.singleMode === 'single') {
       singleHtml = '<span class="price-single price-single--none">单卖价待补</span>';
     } else if (p.singleMode === 'ask') {
@@ -864,10 +921,12 @@
     $('#f-name').value = p ? p.name : '';
     $('#f-code').value = p ? p.code : '';
     $('#f-price').value = p && p.price != null ? fmtMoney(p.price) : '';
-    $('#f-single').value = p && p.singlePrice != null ? fmtMoney(p.singlePrice) : '';
     $('#f-note').value = p ? p.note : '';
     state.formSizes = p ? (p.sizes || []).slice() : [];
     state.formTags = p ? (p.tags || []).slice() : [];
+    // 单卖项：编辑时回填，新增时先给一条空行方便直接填
+    state.formSingleItems = p ? (p.singleItems || []).map(function (it) { return { name: it.name || '', price: it.price }; })
+                              : [{ name: '', price: null }];
 
     setMode(p ? p.singleMode : 'single');
     $('#f-name-err').hidden = true;
@@ -904,12 +963,23 @@
   /* ---- 表单草稿：防止误触返回 / 切后台丢失已填内容 ---- */
   var saveDraftSoon = debounce(function () {
     if ($('#sheet-form').hidden) return;
+    var items = collectSingleItems();
+    // 草稿里连"名称填了但价格还没填"的行也一起存，避免恢复后白填
+    var rawRows = $$('#f-single-list .single-row').map(function (row) {
+      var nameEl = row.querySelector('[data-single="name"]');
+      var priceEl = row.querySelector('[data-single="price"]');
+      return {
+        name: (nameEl ? nameEl.value : '').trim(),
+        price: parsePrice(priceEl ? priceEl.value : '')
+      };
+    }).filter(function (it) { return it.name || it.price != null; });
+
     var d = {
       editingId: state.editingId || null,
       name: $('#f-name').value,
       code: $('#f-code').value,
       price: $('#f-price').value,
-      single: $('#f-single').value,
+      singleItems: rawRows.length ? rawRows : items,
       note: $('#f-note').value,
       mode: currentMode(),
       sizes: state.formSizes.slice(),
@@ -931,7 +1001,8 @@
       if (!d || !d.savedAt) return;
       if ((d.editingId || null) !== editingId) return;
       if (Date.now() - d.savedAt > 12 * 3600 * 1000) return;
-      var hasContent = (d.name && d.name.trim()) || (d.price && String(d.price).trim()) || (d.single && String(d.single).trim());
+      var hasItems = Array.isArray(d.singleItems) && d.singleItems.length > 0;
+      var hasContent = (d.name && d.name.trim()) || (d.price && String(d.price).trim()) || hasItems;
       if (!hasContent) return;
       return showDialog({
         title: '继续上次填写？',
@@ -951,10 +1022,19 @@
     $('#f-name').value = d.name || '';
     $('#f-code').value = d.code || '';
     $('#f-price').value = d.price || '';
-    $('#f-single').value = d.single || '';
     $('#f-note').value = d.note || '';
     state.formSizes = Array.isArray(d.sizes) ? d.sizes.slice() : [];
     state.formTags = Array.isArray(d.tags) ? d.tags.slice() : [];
+    // 兼容旧草稿（single 单值）与新草稿（singleItems 数组）
+    if (Array.isArray(d.singleItems)) {
+      state.formSingleItems = d.singleItems.map(function (it) {
+        return { name: (it && it.name) || '', price: it ? parsePrice(it.price) : null };
+      });
+    } else if (d.single != null && String(d.single).trim()) {
+      state.formSingleItems = [{ name: '', price: parsePrice(d.single) }];
+    } else {
+      state.formSingleItems = [{ name: '', price: null }];
+    }
     setMode(d.mode || 'single');
     renderSizeChips();
     renderTagChips();
@@ -984,17 +1064,13 @@
     var isSingle = mode === 'single';
     $('#f-single-req').textContent = isSingle ? '建议填写' : '选填';
     $('#f-single-hint').textContent = isSingle
-      ? '这件可以拆开卖，填上单卖价，报价的时候直接念给客人听～'
+      ? '这件可以拆开卖。给每件单独卖的部件起个名并定价，比如「上衣 ¥89、裤子 ¥79、内搭 ¥49」，报价时直接念给客人听～'
       : (mode === 'ask'
           ? '选择「需询问」时，可以先留空，问清楚上家再回来补。'
-          : '这个状态一般不需要单卖价，留空就好。');
+          : '这个状态一般不需要填单卖项，留着就好。');
     var field = $('#f-single-field');
     field.classList.toggle('is-emphasized', isSingle);
-    if (isSingle) {
-      $('#f-single').setAttribute('placeholder', '建议填写');
-    } else {
-      $('#f-single').setAttribute('placeholder', '0');
-    }
+    renderSingleItems();
   }
 
   function currentMode() {
@@ -1020,6 +1096,109 @@
     $('#f-tag-chips').innerHTML = html;
   }
 
+  /* ---- 单卖项：动态多行（自定义名称 + 价格）---- */
+  var SINGLE_NAME_PLACEHOLDER = ['上衣', '裤子', '内搭', '外套', '裙子', '配件'];
+
+  function renderSingleItems() {
+    var box = $('#f-single-list');
+    if (!box) return;
+    var items = state.formSingleItems || (state.formSingleItems = []);
+    var count = items.length;
+
+    if (!count) {
+      box.innerHTML = '<p class="single-empty">还没有单卖项，点下面的按钮添加</p>';
+    } else {
+      box.innerHTML = items.map(function (it, i) {
+        return '' +
+          '<div class="single-row" data-index="' + i + '">' +
+            '<input class="input single-row__name" type="text" data-single="name" data-index="' + i + '" ' +
+              'value="' + escapeHtml(it.name || '') + '" maxlength="12" autocomplete="off" ' +
+              'placeholder="' + SINGLE_NAME_PLACEHOLDER[i % SINGLE_NAME_PLACEHOLDER.length] + '（名称）" ' +
+              'aria-label="第 ' + (i + 1) + ' 个单卖项的名称">' +
+            '<div class="single-row__price">' +
+              '<span class="single-row__yen">¥</span>' +
+              '<input class="input single-row__input" type="text" inputmode="decimal" data-single="price" data-index="' + i + '" ' +
+                'value="' + (it.price == null ? '' : fmtMoney(it.price)) + '" placeholder="0" autocomplete="off" ' +
+                'aria-label="第 ' + (i + 1) + ' 个单卖项的价格">' +
+            '</div>' +
+            '<button class="single-row__del" type="button" data-single-del="' + i + '" aria-label="删除第 ' + (i + 1) + ' 个单卖项">' +
+              '<svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">' +
+              '<path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>' +
+            '</button>' +
+          '</div>';
+      }).join('');
+    }
+
+    var full = count >= MAX_SINGLE_ITEMS;
+    var addBtn = $('#f-single-add');
+    addBtn.disabled = full;
+    var label = addBtn.querySelector('.single-add__label');
+    if (label) {
+      label.textContent = full
+        ? (' 最多 ' + MAX_SINGLE_ITEMS + ' 项')
+        : (count ? ' 再加一项' : ' 添加单卖项');
+    }
+  }
+
+  /** 从表单读取单卖项（滤掉没价格的行） */
+  function collectSingleItems() {
+    var rows = $$('#f-single-list .single-row');
+    var out = [];
+    rows.forEach(function (row) {
+      var nameEl = row.querySelector('[data-single="name"]');
+      var priceEl = row.querySelector('[data-single="price"]');
+      var price = parsePrice(priceEl ? priceEl.value : '');
+      if (price == null) return;
+      out.push({
+        name: (nameEl ? nameEl.value : '').trim().slice(0, 12),
+        price: price
+      });
+    });
+    return out;
+  }
+
+  /** 把 DOM 里的输入同步回 state（避免重渲染丢内容） */
+  function syncSingleItemsFromDom() {
+    var rows = $$('#f-single-list .single-row');
+    if (!rows.length) return;
+    var next = [];
+    rows.forEach(function (row) {
+      var nameEl = row.querySelector('[data-single="name"]');
+      var priceEl = row.querySelector('[data-single="price"]');
+      next.push({
+        name: (nameEl ? nameEl.value : '').trim().slice(0, 12),
+        price: parsePrice(priceEl ? priceEl.value : '')
+      });
+    });
+    state.formSingleItems = next;
+  }
+
+  function addSingleItem() {
+    syncSingleItemsFromDom();
+    if (state.formSingleItems.length >= MAX_SINGLE_ITEMS) {
+      toast('最多只能加 ' + MAX_SINGLE_ITEMS + ' 项单卖');
+      return;
+    }
+    state.formSingleItems.push({ name: '', price: null });
+    renderSingleItems();
+    // 聚焦到新加那一行的名称输入框
+    var rows = $$('#f-single-list .single-row');
+    var last = rows[rows.length - 1];
+    if (last) {
+      var input = last.querySelector('[data-single="name"]');
+      if (input) { try { input.focus({ preventScroll: false }); } catch (e) { /* 忽略 */ } }
+      last.scrollIntoView({ block: 'nearest' });
+    }
+    saveDraftSoon();
+  }
+
+  function removeSingleItem(index) {
+    syncSingleItemsFromDom();
+    state.formSingleItems.splice(index, 1);
+    renderSingleItems();
+    saveDraftSoon();
+  }
+
   function toggleInArray(arr, val) {
     var i = arr.indexOf(val);
     if (i >= 0) arr.splice(i, 1);
@@ -1036,13 +1215,7 @@
       return null;
     }
     var mode = currentMode();
-    var single = parsePrice($('#f-single').value);
-
-    if (mode === 'single' && single == null) {
-      // 强烈建议但不强制：给出一次确认
-      state.draft = state.draft || {};
-      state.draft.pendingSingleWarn = true;
-    }
+    var singleItems = collectSingleItems();
 
     var base = state.editingId ? getProduct(state.editingId) : null;
     return normalizeProduct({
@@ -1050,7 +1223,7 @@
       name: name,
       code: $('#f-code').value,
       price: $('#f-price').value,
-      singlePrice: $('#f-single').value,
+      singleItems: singleItems,
       singleMode: mode,
       sizes: state.formSizes,
       tags: state.formTags,
@@ -1076,14 +1249,16 @@
     saving = true;
     $('#f-save').disabled = true;
 
-    var needsWarn = product.singleMode === 'single' && product.singlePrice == null;
+    // 选了「可单卖」却一项都没填 → 提示一次，但不强制
+    var needsWarn = product.singleMode === 'single' && product.singleItems.length === 0;
     var proceed = needsWarn
-      ? confirmDialog('还没填单卖价', '你选择了「可单卖」，但没有填单卖价。<br>以后客人问单卖多少钱，这里会显示「单卖价待补」。<br><br>确定就这样保存吗？', '就这样保存')
+      ? confirmDialog('还没填单卖项', '你选择了「可单卖」，但一项单卖都没填。<br>以后客人问单卖多少钱，列表里会显示「单卖价待补」。<br><br>确定就这样保存吗？', '就这样保存')
       : Promise.resolve(true);
 
     proceed.then(function (ok) {
       if (!ok) {
-        $('#f-single').focus();
+        var first = $('#f-single-list [data-single="price"]');
+        if (first) { try { first.focus(); } catch (e) { /* 忽略 */ } }
         return;
       }
       var payload = state.formImage;
@@ -1120,26 +1295,46 @@
       (p.hasImage ? '<i class="spinner spinner--dark"></i>' : '<span>还没有图片，点「编辑」可以补一张</span>') +
       '</div>';
 
+    var items = p.singleItems || [];
+    var multi = items.length > 1;
+
+    // 套装价 + 单卖汇总（两个并排的小卡）
+    var singleSummaryValue;
+    if (items.length) {
+      singleSummaryValue = multi ? ('¥' + fmtMoney(lowestSinglePrice(p)) + ' 起') : ('¥' + fmtMoney(items[0].price));
+    } else {
+      singleSummaryValue = (p.singleMode === 'ask' ? '需询问' : '无');
+    }
+
     var priceBox =
       '<div class="price-box price-box--main">' +
         '<div class="price-box__label">售价（整套 / 默认）</div>' +
         '<div class="price-box__value">' + (p.price != null ? '¥' + fmtMoney(p.price) : '未填写') + '</div>' +
         '<div class="price-box__note">整套带走按这个价</div>' +
+      '</div>' +
+      '<div class="price-box ' + (items.length ? 'price-box--single' : 'price-box--empty') + '">' +
+        '<div class="price-box__label">单卖' + (multi ? '（' + items.length + ' 项）' : '价') + '</div>' +
+        '<div class="price-box__value">' + singleSummaryValue + '</div>' +
+        '<div class="price-box__note">' + (items.length ? '可以单卖' : m.label + ' · ' + m.desc) + '</div>' +
       '</div>';
 
-    var singleBox;
-    if (p.singlePrice != null) {
-      singleBox = '<div class="price-box price-box--single">' +
-          '<div class="price-box__label">单卖价</div>' +
-          '<div class="price-box__value">¥' + fmtMoney(p.singlePrice) + '</div>' +
-          '<div class="price-box__note">' + (p.singleMode === 'single' ? '可以单卖' : '当前状态：' + m.label) + '</div>' +
-        '</div>';
-    } else {
-      singleBox = '<div class="price-box price-box--empty">' +
-          '<div class="price-box__label">单卖价</div>' +
-          '<div class="price-box__value">' + (p.singleMode === 'ask' ? '需询问' : '无') + '</div>' +
-          '<div class="price-box__note">' + m.label + ' · ' + m.desc + '</div>' +
-        '</div>';
+    // 单卖明细：逐项列出，每项可单独复制
+    var singleDetail = '';
+    if (items.length) {
+      singleDetail = '<div class="detail-block">' +
+        '<div class="detail-block__title">单卖明细' + (multi ? '（' + items.length + ' 项）' : '') + '</div>' +
+        '<div class="single-detail">' +
+        items.map(function (it, i) {
+          return '<div class="single-detail__row">' +
+              '<span class="single-detail__name">' + escapeHtml(singleItemLabel(it)) + '</span>' +
+              '<span class="single-detail__price">¥' + fmtMoney(it.price) + '</span>' +
+              '<button class="single-detail__copy" type="button" data-copy-item="' + i + '" ' +
+                'aria-label="复制 ' + escapeHtml(singleItemLabel(it)) + ' 的价格">复制</button>' +
+            '</div>';
+        }).join('') +
+        '</div>' +
+        (multi ? '<p class="single-detail__sum">合计 ¥' + fmtMoney(items.reduce(function (s, it) { return s + (it.price || 0); }, 0)) + '（单卖全部部件）</p>' : '') +
+      '</div>';
     }
 
     var rows = '';
@@ -1157,11 +1352,12 @@
       hero +
       '<h3 class="detail-name">' + escapeHtml(p.name || '未命名商品') + '</h3>' +
       '<div class="detail-sub">' + modeBadge(p) + (p.code ? '<span class="card__code">' + escapeHtml(p.code) + '</span>' : '') + '</div>' +
-      '<div class="detail-prices">' + priceBox + singleBox + '</div>' +
+      '<div class="detail-prices">' + priceBox + '</div>' +
+      singleDetail +
       '<div class="detail-block"><div class="detail-block__title">商品信息</div>' + rows + '</div>' +
       noteBlock;
 
-    $('#d-copy-single').disabled = p.singlePrice == null;
+    $('#d-copy-single').disabled = items.length === 0;
 
     openSheet('detail');
 
@@ -1230,7 +1426,19 @@
     var lines = ['【' + (p.name || '未命名商品') + '】'];
     if (p.code) lines.push('货号：' + p.code);
     lines.push('售价：' + (p.price != null ? '¥' + fmtMoney(p.price) : '未填写'));
-    lines.push('单卖：' + m.label + (p.singlePrice != null ? ' · ¥' + fmtMoney(p.singlePrice) : ''));
+
+    var items = p.singleItems || [];
+    if (items.length === 1) {
+      lines.push('单卖：' + singleItemLabel(items[0]) + ' ¥' + fmtMoney(items[0].price) + '（' + m.label + '）');
+    } else if (items.length > 1) {
+      lines.push('单卖（' + m.label + '）：');
+      items.forEach(function (it) {
+        lines.push('  · ' + singleItemLabel(it) + ' ¥' + fmtMoney(it.price));
+      });
+    } else {
+      lines.push('单卖：' + m.label);
+    }
+
     if (p.sizes.length) lines.push('尺码：' + p.sizes.join(' / '));
     if (p.tags.length) lines.push('标签：' + p.tags.join(' / '));
     if (p.note) lines.push('备注：' + p.note);
@@ -1465,16 +1673,27 @@
   function sampleProducts() {
     var now = Date.now();
     var raw = [
-      { name: '粉色碎花连衣裙', code: 'A1023', price: 199, singlePrice: 89, singleMode: 'single', sizes: ['S', 'M', 'L'], tags: ['夏款', '连衣裙', '爆款'], note: '只有 M 码了，面料偏薄' },
-      { name: '奶白针织开衫', code: 'B2088', price: 159, singlePrice: null, singleMode: 'no', sizes: ['均码'], tags: ['春秋款', '上衣'], note: '整套两件套，不拆卖' },
-      { name: '牛仔背带裤套装', code: 'C3311', price: 268, singlePrice: null, singleMode: 'set', sizes: ['M', 'L', 'XL'], tags: ['套装', '春秋款'], note: '' },
-      { name: '小熊卫衣亲子装', code: 'D4512', price: 128, singlePrice: 68, singleMode: 'single', sizes: ['100', '120', '140'], tags: ['童装', '亲子装', '新品'], note: '大人小孩同款' },
-      { name: '格纹半身裙', code: 'E5107', price: 118, singlePrice: null, singleMode: 'ask', sizes: ['S', 'M'], tags: ['春秋款'], note: '单卖要问一下上家' }
+      { name: '粉色碎花连衣裙', code: 'A1023', price: 199,
+        singleItems: [{ name: '上衣', price: 89 }], singleMode: 'single',
+        sizes: ['S', 'M', 'L'], tags: ['夏款', '连衣裙', '爆款'], note: '只有 M 码了，面料偏薄' },
+      { name: '奶白针织开衫', code: 'B2088', price: 159,
+        singleItems: [], singleMode: 'no',
+        sizes: ['均码'], tags: ['春秋款', '上衣'], note: '整套两件套，不拆卖' },
+      { name: '牛仔背带裤三件套', code: 'C3311', price: 268,
+        singleItems: [{ name: '上衣', price: 99 }, { name: '裤子', price: 89 }, { name: '内搭', price: 49 }],
+        singleMode: 'single',
+        sizes: ['M', 'L', 'XL'], tags: ['套装', '春秋款'], note: '三件套，可以拆开单卖' },
+      { name: '小熊卫衣亲子装', code: 'D4512', price: 128,
+        singleItems: [{ name: '大人款', price: 88 }, { name: '儿童款', price: 58 }], singleMode: 'single',
+        sizes: ['100', '120', '140'], tags: ['童装', '亲子装', '新品'], note: '大人小孩同款' },
+      { name: '格纹半身裙', code: 'E5107', price: 118,
+        singleItems: [], singleMode: 'ask',
+        sizes: ['S', 'M'], tags: ['春秋款'], note: '单卖要问一下上家' }
     ];
     return raw.map(function (r, i) {
       return normalizeProduct({
         id: DB.uuid(),
-        name: r.name, code: r.code, price: r.price, singlePrice: r.singlePrice,
+        name: r.name, code: r.code, price: r.price, singleItems: r.singleItems,
         singleMode: r.singleMode, sizes: r.sizes, tags: r.tags, note: r.note,
         hasImage: false,
         createdAt: now - i * 60000,
@@ -1699,10 +1918,73 @@
     });
 
     /* ---- 草稿自动保存 ---- */
-    ['f-name', 'f-code', 'f-price', 'f-single', 'f-note'].forEach(function (id) {
+    ['f-name', 'f-code', 'f-price', 'f-note'].forEach(function (id) {
       $('#' + id).addEventListener('input', saveDraftSoon);
     });
     $('#f-mode').addEventListener('click', saveDraftSoon);
+
+    /* ---- 单卖项：增 / 删 / 改 ---- */
+    $('#f-single-add').addEventListener('click', addSingleItem);
+
+    $('#f-single-list').addEventListener('click', function (e) {
+      var del = e.target.closest('[data-single-del]');
+      if (del) {
+        removeSingleItem(Number(del.dataset.singleDel));
+        return;
+      }
+    });
+
+    $('#f-single-list').addEventListener('input', function (e) {
+      var el = e.target.closest('[data-single]');
+      if (!el) return;
+      if (el.dataset.single === 'name') {
+        syncSingleItemsFromDom();
+      } else {
+        // 价格输入：只留数字和一个小数点，随手清掉非法字符
+        var cleaned = String(el.value).replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1');
+        if (cleaned !== el.value) {
+          var pos = el.selectionStart;
+          el.value = cleaned;
+          try { el.setSelectionRange(pos, pos); } catch (err) { /* 忽略 */ }
+        }
+        syncSingleItemsFromDom();
+      }
+      saveDraftSoon();
+    });
+
+    // 失焦时把价格规范化（比如 89. 变成 89）
+    $('#f-single-list').addEventListener('blur', function (e) {
+      var el = e.target.closest('[data-single="price"]');
+      if (!el) return;
+      var v = parsePrice(el.value);
+      el.value = v == null ? '' : fmtMoney(v);
+      syncSingleItemsFromDom();
+      saveDraftSoon();
+    }, true);
+
+    // 回车跳到下一个输入框，方便连续录入
+    $('#f-single-list').addEventListener('keydown', function (e) {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      var row = e.target.closest('.single-row');
+      if (!row) return;
+      var isName = e.target.dataset.single === 'name';
+      if (isName) {
+        var priceEl = row.querySelector('[data-single="price"]');
+        if (priceEl) priceEl.focus();
+      } else {
+        var idx = Number(row.dataset.index);
+        var rows = $$('#f-single-list .single-row');
+        var next = rows[idx + 1];
+        if (next) {
+          next.querySelector('[data-single="name"]').focus();
+        } else if (state.formSingleItems.length < MAX_SINGLE_ITEMS) {
+          addSingleItem();
+        } else {
+          e.target.blur();
+        }
+      }
+    });
 
     /* ---- 图片选择 ---- */
     $('#f-photo-btn').addEventListener('click', function () {
@@ -1786,8 +2068,27 @@
     $('#d-copy-single').addEventListener('click', function () {
       var p = getProduct(state.detailId);
       if (!p) return;
-      if (p.singlePrice == null) { toast('这件没有单卖价'); return; }
-      copyWithToast('单卖价 ¥' + fmtMoney(p.singlePrice), '单卖价');
+      var items = p.singleItems || [];
+      if (!items.length) { toast('这件没有单卖项'); return; }
+      if (items.length === 1) {
+        copyWithToast(singleItemLabel(items[0]) + ' ¥' + fmtMoney(items[0].price), '单卖价');
+        return;
+      }
+      // 多条时一次复制全部明细
+      copyWithToast(items.map(function (it) {
+        return singleItemLabel(it) + ' ¥' + fmtMoney(it.price);
+      }).join('\n'), '单卖明细');
+    });
+
+    // 单卖明细里逐项复制
+    $('#d-body').addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-copy-item]');
+      if (!btn) return;
+      var p = getProduct(state.detailId);
+      if (!p) return;
+      var item = (p.singleItems || [])[Number(btn.dataset.copyItem)];
+      if (!item) return;
+      copyWithToast(singleItemLabel(item) + ' ¥' + fmtMoney(item.price), singleItemLabel(item));
     });
 
     $('#d-copy-all').addEventListener('click', function () {

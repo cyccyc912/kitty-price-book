@@ -305,14 +305,17 @@
         </div>
       </div>
 
-      <!-- 单卖价 -->
+      <!-- 单卖项（可多条，自定义命名） -->
       <div class="field" id="f-single-field">
-        <label class="field__label" for="f-single">单卖价 <em class="opt" id="f-single-req">选填</em></label>
-        <div class="money">
-          <span class="money__sign">¥</span>
-          <input class="input money__input" id="f-single" type="text" inputmode="decimal" placeholder="0" autocomplete="off">
-        </div>
-        <p class="hint" id="f-single-hint">选择「可单卖」后建议填写单卖价，方便随时报价。</p>
+        <label class="field__label">
+          单卖项 <em class="opt" id="f-single-req">选填</em>
+        </label>
+        <div class="single-list" id="f-single-list"></div>
+        <button class="btn btn--soft btn--sm single-add" id="f-single-add" type="button">
+          <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M12 6v12M6 12h12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+          <span class="single-add__label"> 添加单卖项</span>
+        </button>
+        <p class="hint" id="f-single-hint">选择「可单卖」后，可以给每件单独卖的部件起名并定价，比如「上衣 ¥89、裤子 ¥79、内搭 ¥49」。</p>
       </div>
 
       <!-- 尺码 -->

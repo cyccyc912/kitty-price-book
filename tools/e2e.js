@@ -164,9 +164,15 @@ function check(name, ok, detail) {
       set('f-name', '粉色碎花连衣裙');
       set('f-code', 'A1023');
       set('f-price', '199');
-      set('f-single', '89');
       set('f-note', '只有 M 码了');
       document.querySelector('#f-mode .seg__item[data-mode="single"]').click();
+      // 单卖项：填第一条
+      const rows = document.querySelectorAll('#f-single-list .single-row');
+      const r0 = rows[0];
+      const n0 = r0.querySelector('[data-single="name"]');
+      const p0 = r0.querySelector('[data-single="price"]');
+      n0.value = '上衣'; n0.dispatchEvent(new Event('input', { bubbles: true }));
+      p0.value = '89'; p0.dispatchEvent(new Event('input', { bubbles: true }));
       document.querySelector('#f-size-chips .chip[data-size="M"]').click();
       document.querySelector('#f-size-chips .chip[data-size="L"]').click();
       document.querySelector('#f-tag-chips .chip[data-tag="夏款"]').click();
@@ -218,20 +224,21 @@ function check(name, ok, detail) {
     check('新增第二件商品', s.count === 2, 'count=' + s.count);
     check('不可单卖卡片不显示单卖价', !s.text.includes('单卖 ¥') && s.text.includes('不可单卖'), s.text);
 
-    // ---------- 可单卖但没填单卖价 -> 二次确认 ----------
+    // ---------- 可单卖但没填单卖项 -> 二次确认 ----------
     await cdp.eval(`document.getElementById('fab').click(); 'ok'`);
     await sleep(450);
     await cdp.eval(`(() => {
       const el = document.getElementById('f-name'); el.value = '待定单卖价测试'; el.dispatchEvent(new Event('input', {bubbles:true}));
       const p = document.getElementById('f-price'); p.value = '99'; p.dispatchEvent(new Event('input', {bubbles:true}));
       document.querySelector('#f-mode .seg__item[data-mode="single"]').click();
+      // 故意把默认那条单卖项的价格留空
       return 'ok';
     })()`);
     await sleep(150);
     await cdp.eval(`document.getElementById('f-save').click(); 'ok'`);
     await sleep(500);
     const warnShown = await cdp.eval(`!document.getElementById('dialog').hidden && document.getElementById('dialog-title').textContent`);
-    check('可单卖未填单卖价会提示', warnShown && warnShown.includes('单卖价'), warnShown);
+    check('可单卖未填单卖项会提示', warnShown && warnShown.includes('单卖项'), warnShown);
     await cdp.eval(`document.querySelector('#dialog .dialog__actions .btn--primary').click(); 'ok'`);
     await sleep(900);
     s = await cdp.eval(`(() => {
@@ -257,8 +264,9 @@ function check(name, ok, detail) {
       };
     })()`);
     check('详情页可打开', detail.open);
-    check('详情区分售价与单卖价', detail.text.includes('售价（整套 / 默认）') && detail.text.includes('单卖价'), detail.text.slice(0, 80));
+    check('详情区分售价与单卖', detail.text.includes('售价（整套 / 默认）') && detail.text.includes('单卖'), detail.text.slice(0, 80));
     check('详情显示 ¥199 与 ¥89', detail.text.includes('¥199') && detail.text.includes('¥89'));
+    check('详情显示单卖项名称', detail.text.includes('上衣'), detail.text.slice(0, 120));
     check('详情显示尺码标签备注', detail.text.includes('M / L') && detail.text.includes('#夏款') && detail.text.includes('只有 M 码了'));
 
     await cdp.send('Page.captureScreenshot', {}).then(async (r) => {
@@ -273,27 +281,52 @@ function check(name, ok, detail) {
       title: document.getElementById('form-title').textContent,
       name: document.getElementById('f-name').value,
       price: document.getElementById('f-price').value,
-      single: document.getElementById('f-single').value,
+      singleNames: [...document.querySelectorAll('#f-single-list [data-single="name"]')].map(x=>x.value),
+      singlePrices: [...document.querySelectorAll('#f-single-list [data-single="price"]')].map(x=>x.value),
       mode: (document.querySelector('#f-mode .seg__item.is-active')||{}).dataset ? document.querySelector('#f-mode .seg__item.is-active').dataset.mode : null,
       sizes: [...document.querySelectorAll('#f-size-chips .chip.is-active')].map(x=>x.dataset.size),
       tags: [...document.querySelectorAll('#f-tag-chips .chip.is-active')].map(x=>x.dataset.tag)
     }))()`);
     check('编辑会回填表单', editState.open && editState.title === '编辑商品' && editState.name === '粉色碎花连衣裙',
       JSON.stringify(editState));
-    check('编辑回填价格与状态', editState.price === '199' && editState.single === '89' && editState.mode === 'single');
+    check('编辑回填价格与状态', editState.price === '199' && editState.mode === 'single');
+    check('编辑回填单卖项名称与价格',
+      editState.singleNames.join(',') === '上衣' && editState.singlePrices.join(',') === '89',
+      JSON.stringify({ n: editState.singleNames, p: editState.singlePrices }));
     check('编辑回填尺码与标签', editState.sizes.join(',') === 'M,L' && editState.tags.join(',') === '夏款');
 
+    // ---------- 多单卖项：新增两条，验证列表显示最低价 ----------
+    await cdp.eval(`(() => {
+      document.getElementById('f-single-add').click();
+      return 'ok';
+    })()`);
+    await sleep(400);
+    const afterAdd = await cdp.eval(`document.querySelectorAll('#f-single-list .single-row').length`);
+    check('可以添加第二条单卖项', afterAdd === 2, '共 ' + afterAdd + ' 行');
+
+    await cdp.eval(`(() => {
+      const rows = document.querySelectorAll('#f-single-list .single-row');
+      const r = rows[1];
+      const n = r.querySelector('[data-single="name"]');
+      const p = r.querySelector('[data-single="price"]');
+      n.value = '裤子'; n.dispatchEvent(new Event('input', {bubbles:true}));
+      p.value = '59'; p.dispatchEvent(new Event('input', {bubbles:true}));
+      return 'ok';
+    })()`);
+    await sleep(300);
+    // 同一次保存里顺手改售价，避免重复提交
     await cdp.eval(`(() => {
       const el = document.getElementById('f-price'); el.value = '188'; el.dispatchEvent(new Event('input',{bubbles:true}));
       return 'ok';
     })()`);
     await sleep(200);
     await cdp.eval(`document.getElementById('f-save').click(); 'ok'`);
-    await sleep(1000);
+    await sleep(1300);
     s = await cdp.eval(`(() => {
       const c=[...document.querySelectorAll('#p-list .card')].find(x=>x.textContent.includes('粉色碎花'));
       return c.textContent.replace(/\\s+/g,' ').trim();
     })()`);
+    check('多条单卖时列表显示最低价', s.includes('单卖 ¥59 起') && s.includes('2 项可单卖'), s);
     check('编辑后价格已更新', s.includes('¥188') && !s.includes('¥199'), s);
 
     // ---------- 搜索 ----------
