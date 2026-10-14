@@ -1738,6 +1738,59 @@
       doImportFile(f);
     });
     $('#set-clear').addEventListener('click', doClear);
+
+    /* ---- 检查更新（强制清缓存重载）---- */
+    $('#set-update').addEventListener('click', function () {
+      var btn = this;
+      btn.disabled = true;
+      btn.textContent = '检查中…';
+
+      var done = function (msg) {
+        toast(msg);
+      };
+
+      if (!('serviceWorker' in navigator) || !/^https?:$/.test(location.protocol)) {
+        btn.disabled = false;
+        btn.textContent = '检查更新';
+        done('当前环境不支持自动更新，请手动刷新页面');
+        return;
+      }
+
+      navigator.serviceWorker.getRegistration().then(function (reg) {
+        var refresh = function () {
+          // 清掉所有缓存后硬重载，确保拿到最新文件
+          navigator.serviceWorker.controller &&
+            navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_CACHE' });
+          setTimeout(function () {
+            location.reload();
+          }, 500);
+        };
+
+        if (!reg) {
+          navigator.serviceWorker.register('sw.js').then(refresh).catch(function () {
+            btn.disabled = false;
+            btn.textContent = '检查更新';
+            done('注册失败，请手动刷新页面');
+          });
+          return;
+        }
+
+        reg.update().then(function () {
+          if (reg.waiting) {
+            // 有新版本在等待，直接启用
+            applyUpdate();
+            return;
+          }
+          refresh();
+        }).catch(function () {
+          refresh();
+        });
+      }).catch(function () {
+        btn.disabled = false;
+        btn.textContent = '检查更新';
+        done('检查失败，请手动刷新页面');
+      });
+    });
     $('#set-demo').addEventListener('click', function () {
       if (state.products.length) {
         confirmDialog('载入示例商品？', '会在现有 ' + state.products.length + ' 件商品的基础上，再追加 5 件示例。', '载入').then(function (ok) {
@@ -2106,19 +2159,98 @@
     });
 
     // 注册 Service Worker（仅 http/https 下有效）
-    if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
-      window.addEventListener('load', function () {
-        navigator.serviceWorker.register('sw.js').then(function (reg) {
-          void reg;
-        }).catch(function () {
-          /* 离线缓存注册失败不影响主功能 */
-        });
-      });
-    }
+    setupServiceWorker();
 
-    // 阻止 iOS 上把整个页面拖拽回弹（弹层内滚动除外）
-    /* ---- 阻止 iOS 双指缩放整个页面（弹层内滚动不受影响）---- */
+    /* ---- 阻止 iOS 上把整个页面拖拽回弹（弹层内滚动除外）---- */
     document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
+  }
+
+  /* ============================================================
+     Service Worker 注册与更新
+     ------------------------------------------------------------
+     历史上踩过的坑：改了代码重新部署，但缓存版本号没变，
+     浏览器一直用旧缓存，手机上表现为"按钮点不了"。
+     这里做了三件事避免再次发生：
+       1. 发现新版本时提示用户刷新
+       2. 每次启动都主动检查更新
+       3. 设置页提供「检查更新」按钮，可强制清缓存重载
+     ============================================================ */
+  var swRegistration = null;
+  var refreshing = false;
+
+  function setupServiceWorker() {
+    if (!('serviceWorker' in navigator) || !/^https?:$/.test(location.protocol)) return;
+
+    // 新 SW 接管后自动刷新一次（只刷一次，避免循环）
+    navigator.serviceWorker.addEventListener('controllerchange', function () {
+      if (refreshing) return;
+      refreshing = true;
+      location.reload();
+    });
+
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('sw.js').then(function (reg) {
+        swRegistration = reg;
+
+        // 检测更新：发现等待中的新版本就提示刷新
+        reg.addEventListener('updatefound', function () {
+          var incoming = reg.installing;
+          if (!incoming) return;
+          incoming.addEventListener('statechange', function () {
+            if (incoming.state === 'installed' && navigator.serviceWorker.controller) {
+              showUpdateToast();
+            }
+          });
+        });
+
+        // 已经有等待中的新版本（比如上次没刷新）
+        if (reg.waiting && navigator.serviceWorker.controller) {
+          showUpdateToast();
+        }
+
+        // 每次启动主动检查一次更新
+        reg.update().catch(function () { /* 忽略 */ });
+      }).catch(function () {
+        /* 离线缓存注册失败不影响主功能 */
+      });
+    });
+
+    // 从后台切回前台时检查更新
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden && swRegistration) {
+        swRegistration.update().catch(function () { /* 忽略 */ });
+      }
+    });
+  }
+
+  var updateToastShown = false;
+  function showUpdateToast() {
+    if (updateToastShown) return;
+    updateToastShown = true;
+    showDialog({
+      title: '有新版本啦',
+      message: '已经下载好新版本，点「立即更新」重启一下就能用上。',
+      buttons: [
+        { text: '稍后', value: null, style: 'ghost' },
+        { text: '立即更新', value: 'go', style: 'primary' }
+      ]
+    }).then(function (v) {
+      updateToastShown = false;
+      if (v === 'go') applyUpdate();
+    });
+  }
+
+  /** 让等待中的 SW 立刻接管并刷新页面 */
+  function applyUpdate() {
+    var waiting = swRegistration && swRegistration.waiting;
+    if (!waiting) {
+      location.reload();
+      return;
+    }
+    refreshing = true;
+    waiting.postMessage({ type: 'SKIP_WAITING' });
+    // 兜底：1.2 秒后无论如何都刷新一次
+    setTimeout(function () { location.reload(); }, 1200);
   }
 
   if (document.readyState === 'loading') {

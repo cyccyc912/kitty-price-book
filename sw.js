@@ -3,12 +3,16 @@
    ------------------------------------------------------------
    策略：
    - 安装时预缓存 App Shell（HTML/CSS/JS/图标）
-   - 导航请求：网络优先，失败回落缓存（离线也能开）
-   - 静态资源：缓存优先 + 后台更新（stale-while-revalidate）
+   - 导航请求（index.html）：网络优先，失败回落缓存 → 保证每次都能拿到新版
+   - 其它静态资源：stale-while-revalidate（先用缓存秒开，同时后台拉新版）
    - 只处理同源 GET 请求，不碰任何第三方请求
+
+   ⚠️ 重要：每次修改 js/css/html 后，必须把下面的 CACHE_VERSION 改成新版本号，
+   否则浏览器会继续用旧缓存，用户永远看不到新代码（曾经因此出过
+   "改了代码但手机上按钮点不了"的问题）。
    ============================================================ */
 
-var CACHE_VERSION = 'kitty-price-book-v1.0.0';
+var CACHE_VERSION = 'kitty-price-book-v1.1.0';
 var SHELL_CACHE = CACHE_VERSION + '-shell';
 var RUNTIME_CACHE = CACHE_VERSION + '-runtime';
 
@@ -37,22 +41,25 @@ self.addEventListener('install', function (event) {
         });
       }));
     }).then(function () {
+      // 新 SW 立即进入 waiting → active，不等旧页面全部关闭
       return self.skipWaiting();
     })
   );
 });
 
-/* ---------------- 激活：清理旧缓存 ---------------- */
+/* ---------------- 激活：清理所有旧版本缓存 ---------------- */
 self.addEventListener('activate', function (event) {
   event.waitUntil(
     caches.keys().then(function (keys) {
       return Promise.all(keys.map(function (key) {
+        // 只保留当前版本的缓存，其余（含旧版本）全部删除
         if (key.indexOf(CACHE_VERSION) !== 0) {
           return caches.delete(key);
         }
         return null;
       }));
     }).then(function () {
+      // 立即接管所有已打开的页面
       return self.clients.claim();
     })
   );
@@ -62,17 +69,18 @@ self.addEventListener('activate', function (event) {
 self.addEventListener('fetch', function (event) {
   var req = event.request;
 
-  // 只处理 GET
   if (req.method !== 'GET') return;
 
   var url;
   try { url = new URL(req.url); } catch (e) { return; }
-
-  // 只处理同源请求
   if (url.origin !== self.location.origin) return;
 
-  // 页面导航：网络优先，断网回落缓存
-  if (req.mode === 'navigate' || (req.headers.get('accept') || '').indexOf('text/html') >= 0) {
+  var isHTML = req.mode === 'navigate' ||
+    (req.headers.get('accept') || '').indexOf('text/html') >= 0;
+
+  // 页面导航：网络优先，断网回落缓存。
+  // 这样只要联网就一定能拿到最新版页面，避免被旧缓存卡住。
+  if (isHTML) {
     event.respondWith(
       fetch(req)
         .then(function (res) {
@@ -94,7 +102,7 @@ self.addEventListener('fetch', function (event) {
     return;
   }
 
-  // 其它同源静态资源：缓存优先，后台更新
+  // 其它同源静态资源：先用缓存（秒开），同时后台更新缓存
   event.respondWith(
     caches.match(req).then(function (cached) {
       var network = fetch(req).then(function (res) {
@@ -104,14 +112,16 @@ self.addEventListener('fetch', function (event) {
         }
         return res;
       }).catch(function () {
-        return cached || Response.error();
+        if (cached) return cached;
+        return Response.error();
       });
+      // 有缓存就立刻返回，网络请求在后台跑（stale-while-revalidate）
       return cached || network;
     })
   );
 });
 
-/* ---------------- 消息：手动触发更新 ---------------- */
+/* ---------------- 消息：手动触发更新 / 清缓存 ---------------- */
 self.addEventListener('message', function (event) {
   var data = event.data || {};
   if (data.type === 'SKIP_WAITING') {
@@ -121,6 +131,10 @@ self.addEventListener('message', function (event) {
     event.waitUntil(
       caches.keys().then(function (keys) {
         return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+      }).then(function () {
+        return self.clients.matchAll();
+      }).then(function (clients) {
+        clients.forEach(function (c) { c.postMessage({ type: 'CACHE_CLEARED' }); });
       })
     );
   }
