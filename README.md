@@ -74,9 +74,32 @@ php -S 127.0.0.1:8899
 
 ---
 
-## 四、部署到线上（三选一，都免费）
+## 四、部署到线上
 
-### 方式 A：GitHub Pages（推荐，完全免费且长期稳定）
+### ✅ 已部署完成
+
+| 项目 | 地址 |
+| --- | --- |
+| **线上网址** | **https://cyccyc912.github.io/kitty-price-book/** |
+| 代码仓库 | https://github.com/cyccyc912/kitty-price-book |
+| Pages 设置 | https://github.com/cyccyc912/kitty-price-book/settings/pages |
+
+在 iPhone Safari 里直接打开上面的线上网址，然后按第五节添加到主屏幕即可。
+
+**更新网站内容**：改完代码后执行下面三条命令，等 1 分钟左右 GitHub 会自动重新构建。
+
+```bash
+cd clothing-price-pwa
+git add .
+git commit -m "更新说明"
+git push
+```
+
+---
+
+### 如果想换一个地址部署（备选方案）
+
+#### 方式 A：GitHub Pages（当前使用中）
 
 ```bash
 cd clothing-price-pwa
@@ -97,7 +120,10 @@ git push -u origin main
 
 > 仓库必须是 **Public**（私有仓库的 Pages 需要付费）。本项目不含任何隐私数据，公开也没关系。
 
-### 方式 B：Netlify（拖拽即可，最快）
+> ⚠️ **国内网络提示**：`github.io` 在部分国内网络下会被 DNS 污染或 SNI 阻断，导致手机打不开。
+> 如果遇到这种情况，改用下面的 Netlify 或 Cloudflare Pages，国内访问通常更顺畅。
+
+### 方式 B：Netlify（拖拽即可，最快，国内访问通常比 github.io 好）
 
 1. 打开 <https://app.netlify.com/drop>
 2. 把整个 `clothing-price-pwa` 文件夹**拖进去**
@@ -105,11 +131,19 @@ git push -u origin main
 
 也可以连 GitHub 仓库做自动部署：**Add new site → Import an existing project**，Build command 留空，Publish directory 填 `.`。
 
-### 方式 C：Vercel
+### 方式 C：Cloudflare Pages（免费、不限流量）
+
+1. 打开 <https://dash.cloudflare.com/> → 左侧 **Workers & Pages** → **Create** → **Pages** → **Upload assets**
+2. 把 `clothing-price-pwa` 文件夹拖进去上传
+3. 得到形如 `https://随机名.pages.dev` 的网址
+
+### 方式 D：Vercel
 
 1. 打开 <https://vercel.com/new>，用 GitHub 登录并导入仓库
 2. Framework Preset 选 **Other**，Build Command 与 Output Directory 都留空
 3. 点 **Deploy**，得到 `https://xxx.vercel.app`
+
+> ⚠️ `vercel.app` 域名在部分国内网络下同样会被污染，国内使用优先选 Netlify 或 Cloudflare Pages。
 
 > 三种方式都会自动提供 HTTPS，而 **HTTPS 是 PWA 的必要条件**（也是剪贴板 API 正常工作的前提）。
 
