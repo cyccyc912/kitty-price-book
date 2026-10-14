@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>喵喵价格本 · 服装代理报价查询</title>
+<meta name="description" content="服装代理商品价格查询：售价、单卖价、可单卖状态、尺码、标签，离线可用，数据只存在手机本地。">
+
+<!-- PWA / iOS -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#ff8fbe">
+<meta name="color-scheme" content="light">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="价格本">
+<meta name="format-detection" content="telephone=no">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/favicon.png" sizes="32x32">
+<link rel="icon" href="icons/icon-192.png" sizes="192x192">
+
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<!-- ============ 顶部标题栏 ============ -->
+<header class="appbar" id="appbar">
+  <div class="appbar__inner">
+    <span class="appbar__kitty" aria-hidden="true">
+      <svg viewBox="0 0 48 40" width="34" height="28">
+        <path d="M8 16 L6 4 L18 11 Z" fill="#fff" stroke="#f090b8" stroke-width="1.6" stroke-linejoin="round"/>
+        <path d="M40 16 L42 4 L30 11 Z" fill="#fff" stroke="#f090b8" stroke-width="1.6" stroke-linejoin="round"/>
+        <ellipse cx="24" cy="22" rx="18" ry="15" fill="#fff" stroke="#f090b8" stroke-width="1.6"/>
+        <ellipse cx="17" cy="21" rx="2.1" ry="2.7" fill="#3a2e34"/>
+        <ellipse cx="31" cy="21" rx="2.1" ry="2.7" fill="#3a2e34"/>
+        <ellipse cx="24" cy="26" rx="2.2" ry="1.7" fill="#ffbe3c"/>
+        <path d="M36 10 l3.4-3.6 3.4 3.6-3.4 3.6z" fill="#ff5c8a"/>
+        <circle cx="36" cy="10" r="1.5" fill="#e23e6e"/>
+      </svg>
+    </span>
+    <div class="appbar__text">
+      <h1 class="appbar__title">喵喵价格本</h1>
+      <p class="appbar__sub" id="appbar-sub">价格随手查 · 离线可用</p>
+    </div>
+    <button class="icon-btn appbar__add" id="btn-quick-add" type="button" aria-label="新增商品">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+  <div class="offline-banner" id="offline-banner" hidden>离线模式 · 数据照常可用</div>
+</header>
+
+<!-- ============ 主体三个页面 ============ -->
+<main class="views" id="views">
+
+  <!-- ---------- 商品列表 ---------- -->
+  <section class="view is-active" id="view-products" aria-label="商品列表">
+    <div class="toolbar">
+      <div class="stat-card">
+        <div class="stat-card__item">
+          <span class="stat-card__num" id="stat-total">0</span>
+          <span class="stat-card__label">件商品</span>
+        </div>
+        <div class="stat-card__divider"></div>
+        <div class="stat-card__item">
+          <span class="stat-card__num stat-card__num--pink" id="stat-single">0</span>
+          <span class="stat-card__label">可单卖</span>
+        </div>
+        <div class="stat-card__divider"></div>
+        <div class="stat-card__item">
+          <span class="stat-card__num stat-card__num--blue" id="stat-ask">0</span>
+          <span class="stat-card__label">需询问</span>
+        </div>
+      </div>
+
+      <div class="chip-row" id="p-chips" role="group" aria-label="按可单卖状态筛选">
+        <button class="chip is-active" type="button" data-filter="all">全部</button>
+        <button class="chip" type="button" data-filter="single">可单卖</button>
+        <button class="chip" type="button" data-filter="no">不可单卖</button>
+        <button class="chip" type="button" data-filter="set">仅整套</button>
+        <button class="chip" type="button" data-filter="ask">需询问</button>
+      </div>
+
+      <div class="filter-block" id="p-tag-block" hidden>
+        <p class="filter-block__title">按标签</p>
+        <div class="chip-row" id="p-tags"></div>
+      </div>
+
+      <div class="filter-block" id="p-size-block" hidden>
+        <p class="filter-block__title">按尺码</p>
+        <div class="chip-row" id="p-sizes"></div>
+      </div>
+
+      <div class="sort-row">
+        <label class="sort-row__label" for="p-sort">排序</label>
+        <select class="select" id="p-sort">
+          <option value="new">最新添加</option>
+          <option value="price-desc">价格从高到低</option>
+          <option value="price-asc">价格从低到高</option>
+        </select>
+        <span class="sort-row__count" id="p-count"></span>
+      </div>
+    </div>
+
+    <div class="list" id="p-list"></div>
+    <div class="state" id="p-state" hidden></div>
+  </section>
+
+  <!-- ---------- 搜索 ---------- -->
+  <section class="view" id="view-search" aria-label="搜索">
+    <div class="toolbar">
+      <div class="search-box">
+        <svg class="search-box__icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+          <circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/>
+          <path d="M16 16l4.5 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        <input class="search-box__input" id="s-input" type="search" inputmode="search" enterkeyhint="search"
+               placeholder="搜商品名 / 货号 / 标签" autocomplete="off" autocorrect="off" spellcheck="false"
+               aria-label="搜索商品名、货号、标签">
+        <button class="search-box__clear" id="s-clear" type="button" aria-label="清空搜索" hidden>
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+
+      <div class="filter-block" id="s-tag-block" hidden>
+        <p class="filter-block__title">按标签</p>
+        <div class="chip-row" id="s-tags"></div>
+      </div>
+
+      <div class="filter-block" id="s-size-block" hidden>
+        <p class="filter-block__title">按尺码</p>
+        <div class="chip-row" id="s-sizes"></div>
+      </div>
+
+      <div class="sort-row">
+        <button class="btn btn--ghost btn--sm" id="s-reset" type="button">重置筛选</button>
+        <span class="sort-row__count" id="s-count"></span>
+      </div>
+    </div>
+
+    <div class="list" id="s-list"></div>
+    <div class="state" id="s-state" hidden></div>
+  </section>
+
+  <!-- ---------- 设置 ---------- -->
+  <section class="view" id="view-settings" aria-label="设置">
+    <div class="settings">
+      <div class="panel">
+        <h2 class="panel__title">数据概览</h2>
+        <div class="kv"><span class="kv__k">商品数量</span><span class="kv__v" id="set-count">0 件</span></div>
+        <div class="kv"><span class="kv__k">图片数量</span><span class="kv__v" id="set-imgcount">0 张</span></div>
+        <div class="kv"><span class="kv__k">占用空间</span><span class="kv__v" id="set-usage">计算中…</span></div>
+        <div class="meter" aria-hidden="true"><div class="meter__bar" id="set-meter"></div></div>
+        <p class="hint" id="set-usage-hint">数据全部保存在这台手机的浏览器里，不会上传到任何服务器。</p>
+      </div>
+
+      <div class="panel" id="backup-panel">
+        <h2 class="panel__title">备份与恢复</h2>
+        <div class="backup-tip" id="backup-tip">
+          <span class="backup-tip__icon" aria-hidden="true">!</span>
+          <span class="backup-tip__text" id="backup-tip-text">还没有备份过，建议现在导出一次。</span>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn--primary" id="set-export" type="button">导出 JSON 备份</button>
+          <button class="btn btn--soft" id="set-import" type="button">导入 JSON 恢复</button>
+        </div>
+        <input type="file" id="set-import-file" accept="application/json,.json" hidden>
+        <p class="hint">导出的文件可以存到「文件」App、微信收藏或 iCloud，换手机也能恢复。</p>
+      </div>
+
+      <div class="panel">
+        <h2 class="panel__title">提醒</h2>
+        <label class="switch-row">
+          <span class="switch-row__label">备份提醒<small>超过 7 天没备份时提示我</small></span>
+          <input type="checkbox" id="set-remind" class="switch" checked>
+        </label>
+      </div>
+
+      <div class="panel">
+        <h2 class="panel__title">其它</h2>
+        <div class="btn-row">
+          <button class="btn btn--soft" id="set-demo" type="button">载入示例商品</button>
+          <button class="btn btn--danger-ghost" id="set-clear" type="button">清空全部数据</button>
+        </div>
+        <p class="hint">示例商品方便你先熟悉操作，随时可以删掉。</p>
+      </div>
+
+      <div class="panel panel--about">
+        <h2 class="panel__title">关于</h2>
+        <p class="about__line"><strong>喵喵价格本</strong> · 版本 <span id="set-version">1.0.0</span></p>
+        <p class="about__line" id="set-mode">存储方式：IndexedDB</p>
+        <p class="hint">不登录、不联网、不采集数据。卸载或清除浏览器数据会丢失内容，记得定期备份。</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- ============ 底部导航 ============ -->
+<nav class="tabbar" id="tabbar" aria-label="主导航">
+  <button class="tab is-active" type="button" data-view="products" aria-current="page">
+    <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+      <path d="M4 8.5l2-4h12l2 4v1.2a2.3 2.3 0 0 1-4 1.5 2.3 2.3 0 0 1-4 0 2.3 2.3 0 0 1-4 0 2.3 2.3 0 0 1-4-1.5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+      <path d="M5.5 12.6V19a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-6.4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+    </svg>
+    <span>商品</span>
+  </button>
+  <button class="tab" type="button" data-view="search">
+    <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+      <circle cx="11" cy="11" r="6.4" fill="none" stroke="currentColor" stroke-width="1.9"/>
+      <path d="M16 16l4.6 4.6" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+    </svg>
+    <span>搜索</span>
+  </button>
+  <button class="tab" type="button" data-view="settings">
+    <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+      <circle cx="12" cy="12" r="3.1" fill="none" stroke="currentColor" stroke-width="1.9"/>
+      <path d="M12 3.6v2.2M12 18.2v2.2M4.9 7.8l1.9 1.1M17.2 15.1l1.9 1.1M4.9 16.2l1.9-1.1M17.2 8.9l1.9-1.1" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+    </svg>
+    <span>设置</span>
+    <i class="tab__dot" id="tab-dot" hidden></i>
+  </button>
+</nav>
+
+<!-- ============ 悬浮新增按钮 ============ -->
+<button class="fab" id="fab" type="button" aria-label="新增商品">
+  <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path d="M12 5.5v13M5.5 12h13" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>
+</button>
+
+<!-- ============ 商品表单（新增 / 编辑） ============ -->
+<div class="sheet" id="sheet-form" hidden>
+  <div class="sheet__mask" data-close="form"></div>
+  <div class="sheet__panel" role="dialog" aria-modal="true" aria-labelledby="form-title">
+    <header class="sheet__head">
+      <button class="text-btn" type="button" data-close="form">取消</button>
+      <h2 class="sheet__title" id="form-title">新增商品</h2>
+      <button class="text-btn text-btn--strong" type="button" id="f-save">保存</button>
+    </header>
+
+    <div class="sheet__body">
+      <!-- 图片 -->
+      <div class="field">
+        <label class="field__label">商品图片</label>
+        <div class="photo">
+          <button class="photo__picker" id="f-photo-btn" type="button" aria-label="选择或拍摄商品图片">
+            <img class="photo__img" id="f-photo-img" alt="" hidden>
+            <span class="photo__ph" id="f-photo-ph">
+              <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
+                <rect x="3" y="6" width="18" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="1.7"/>
+                <circle cx="12" cy="13" r="3.4" fill="none" stroke="currentColor" stroke-width="1.7"/>
+                <path d="M9 6l1.2-2h3.6L15 6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+              </svg>
+              <span>拍照 / 相册</span>
+            </span>
+            <span class="photo__loading" id="f-photo-loading" hidden><i class="spinner"></i>压缩中…</span>
+          </button>
+          <div class="photo__side">
+            <p class="photo__tip">自动压缩到 800px 以内，省空间</p>
+            <button class="btn btn--tiny btn--ghost" id="f-photo-clear" type="button" hidden>删除图片</button>
+          </div>
+        </div>
+        <input type="file" id="f-photo-input" accept="image/*" hidden>
+      </div>
+
+      <!-- 名称 / 货号 -->
+      <div class="field">
+        <label class="field__label" for="f-name">商品名 <em class="req">必填</em></label>
+        <input class="input" id="f-name" type="text" placeholder="例如：粉色碎花连衣裙" autocomplete="off" maxlength="60">
+        <p class="field__error" id="f-name-err" hidden>请填写商品名</p>
+      </div>
+
+      <div class="field">
+        <label class="field__label" for="f-code">货号 <em class="opt">选填</em></label>
+        <input class="input" id="f-code" type="text" placeholder="例如：A1023" autocomplete="off" maxlength="40">
+      </div>
+
+      <!-- 价格 -->
+      <div class="field">
+        <label class="field__label" for="f-price">售价（整套 / 默认售价）</label>
+        <div class="money">
+          <span class="money__sign">¥</span>
+          <input class="input money__input" id="f-price" type="text" inputmode="decimal" placeholder="0" autocomplete="off">
+        </div>
+        <div class="quick-add" id="f-price-quick">
+          <button type="button" data-add="10">+10</button>
+          <button type="button" data-add="50">+50</button>
+          <button type="button" data-add="100">+100</button>
+        </div>
+      </div>
+
+      <!-- 可单卖状态 -->
+      <div class="field">
+        <label class="field__label">是否可单卖</label>
+        <div class="seg" id="f-mode" role="radiogroup" aria-label="是否可单卖">
+          <button class="seg__item" type="button" data-mode="single" role="radio" aria-checked="false">
+            <span class="seg__t">可单卖</span><span class="seg__d">可以拆开卖</span>
+          </button>
+          <button class="seg__item" type="button" data-mode="no" role="radio" aria-checked="false">
+            <span class="seg__t">不可单卖</span><span class="seg__d">只能整套</span>
+          </button>
+          <button class="seg__item" type="button" data-mode="set" role="radio" aria-checked="false">
+            <span class="seg__t">仅整套</span><span class="seg__d">成套出售</span>
+          </button>
+          <button class="seg__item" type="button" data-mode="ask" role="radio" aria-checked="false">
+            <span class="seg__t">需询问</span><span class="seg__d">先问上家</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 单卖价 -->
+      <div class="field" id="f-single-field">
+        <label class="field__label" for="f-single">单卖价 <em class="opt" id="f-single-req">选填</em></label>
+        <div class="money">
+          <span class="money__sign">¥</span>
+          <input class="input money__input" id="f-single" type="text" inputmode="decimal" placeholder="0" autocomplete="off">
+        </div>
+        <p class="hint" id="f-single-hint">选择「可单卖」后建议填写单卖价，方便随时报价。</p>
+      </div>
+
+      <!-- 尺码 -->
+      <div class="field">
+        <label class="field__label">尺码 <em class="opt">可多选</em></label>
+        <div class="chip-row chip-row--wrap" id="f-size-chips"></div>
+        <div class="inline-add">
+          <input class="input input--sm" id="f-size-custom" type="text" placeholder="自定义尺码，如 均码/120" maxlength="16" autocomplete="off">
+          <button class="btn btn--soft btn--sm" id="f-size-add" type="button">添加</button>
+        </div>
+      </div>
+
+      <!-- 标签 -->
+      <div class="field">
+        <label class="field__label">标签 <em class="opt">可多选</em></label>
+        <div class="chip-row chip-row--wrap" id="f-tag-chips"></div>
+        <div class="inline-add">
+          <input class="input input--sm" id="f-tag-custom" type="text" placeholder="自定义标签，如 夏款/爆款" maxlength="16" autocomplete="off">
+          <button class="btn btn--soft btn--sm" id="f-tag-add" type="button">添加</button>
+        </div>
+      </div>
+
+      <!-- 备注 -->
+      <div class="field">
+        <label class="field__label" for="f-note">备注 <em class="opt">选填</em></label>
+        <textarea class="input textarea" id="f-note" rows="3" placeholder="例如：只有 M 码了 / 面料偏厚" maxlength="300"></textarea>
+      </div>
+
+      <div class="sheet__pad"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 商品详情 ============ -->
+<div class="sheet" id="sheet-detail" hidden>
+  <div class="sheet__mask" data-close="detail"></div>
+  <div class="sheet__panel sheet__panel--detail" role="dialog" aria-modal="true" aria-labelledby="detail-title">
+    <header class="sheet__head">
+      <button class="text-btn" type="button" data-close="detail">关闭</button>
+      <h2 class="sheet__title" id="detail-title">商品详情</h2>
+      <button class="text-btn text-btn--strong" type="button" id="d-edit">编辑</button>
+    </header>
+    <div class="sheet__body" id="d-body"></div>
+    <footer class="sheet__foot">
+      <div class="btn-row btn-row--3">
+        <button class="btn btn--soft btn--sm" id="d-copy-price" type="button">复制售价</button>
+        <button class="btn btn--soft btn--sm" id="d-copy-single" type="button">复制单卖价</button>
+        <button class="btn btn--soft btn--sm" id="d-copy-all" type="button">复制全部</button>
+      </div>
+      <button class="btn btn--danger-ghost btn--block" id="d-delete" type="button">删除这件商品</button>
+    </footer>
+  </div>
+</div>
+
+<!-- ============ 通用确认弹窗 ============ -->
+<div class="dialog" id="dialog" hidden>
+  <div class="dialog__mask" data-dialog="cancel"></div>
+  <div class="dialog__panel" role="alertdialog" aria-modal="true" aria-labelledby="dialog-title">
+    <div class="dialog__kitty" aria-hidden="true">
+      <svg viewBox="0 0 48 40" width="46" height="38">
+        <path d="M8 16 L6 4 L18 11 Z" fill="#fff" stroke="#f090b8" stroke-width="1.6" stroke-linejoin="round"/>
+        <path d="M40 16 L42 4 L30 11 Z" fill="#fff" stroke="#f090b8" stroke-width="1.6" stroke-linejoin="round"/>
+        <ellipse cx="24" cy="22" rx="18" ry="15" fill="#fff" stroke="#f090b8" stroke-width="1.6"/>
+        <ellipse cx="17" cy="21" rx="2.1" ry="2.7" fill="#3a2e34"/>
+        <ellipse cx="31" cy="21" rx="2.1" ry="2.7" fill="#3a2e34"/>
+        <ellipse cx="24" cy="26" rx="2.2" ry="1.7" fill="#ffbe3c"/>
+        <path d="M36 10 l3.4-3.6 3.4 3.6-3.4 3.6z" fill="#ff5c8a"/>
+      </svg>
+    </div>
+    <h3 class="dialog__title" id="dialog-title">提示</h3>
+    <p class="dialog__msg" id="dialog-msg"></p>
+    <div class="dialog__actions">
+      <button class="btn btn--ghost" id="dialog-cancel" type="button">取消</button>
+      <button class="btn btn--primary" id="dialog-ok" type="button">确定</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 图片大图查看 ============ -->
+<div class="lightbox" id="lightbox" hidden>
+  <button class="lightbox__close" id="lightbox-close" type="button" aria-label="关闭大图">
+    <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+  </button>
+  <img class="lightbox__img" id="lightbox-img" alt="">
+</div>
+
+<!-- ============ 轻提示 ============ -->
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<noscript>
+  <div class="noscript">这个页面需要开启 JavaScript 才能使用。</div>
+</noscript>
+
+<script src="js/db.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

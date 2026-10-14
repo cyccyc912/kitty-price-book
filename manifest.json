@@ -1,0 +1,53 @@
+{
+  "name": "喵喵价格本 · 服装代理报价查询",
+  "short_name": "价格本",
+  "description": "服装代理商品价格查询：售价、单卖价、可单卖状态、尺码、标签，全部离线可用，数据只存在手机本地。",
+  "id": "./",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "portrait",
+  "background_color": "#fff7fb",
+  "theme_color": "#ff8fbe",
+  "lang": "zh-CN",
+  "dir": "ltr",
+  "categories": ["shopping", "productivity", "utilities"],
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "新增商品",
+      "short_name": "新增",
+      "description": "直接打开新增商品表单",
+      "url": "./index.html?action=add",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "搜索价格",
+      "short_name": "搜索",
+      "description": "直接打开搜索页",
+      "url": "./index.html?view=search",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ]
+}
