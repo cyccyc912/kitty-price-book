@@ -1,0 +1,9 @@
+# 统一换行符，避免 Windows 上提交时出现大量 CRLF 警告
+* text=auto eol=lf
+
+# 二进制文件不做换行符转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.ico binary
