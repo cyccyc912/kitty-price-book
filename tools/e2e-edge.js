@@ -4,7 +4,7 @@
    用法： node tools/e2e-edge.js [baseUrl]
    覆盖：兼容模式降级、草稿恢复、连点防重、价格解析、复制、
          单卖项（迁移 / 上限 / 默认名 / 逐项复制）、
-         自定义尺码标签、转义安全、大数据量、软键盘适配等
+         自定义标签、转义安全、大数据量、软键盘适配等
    ============================================================ */
 'use strict';
 
@@ -243,22 +243,17 @@ const BASE = process.argv[2] || 'http://127.0.0.1:8899/index.html';
     const draftCleared = await cdp.eval(`document.getElementById('f-name').value`);
     check('选择「不用了」后草稿被清空', draftCleared === '', 'name="' + draftCleared + '"');
 
-    // ---------- 自定义尺码 / 标签 ----------
+    // ---------- 自定义标签 ----------
     await cdp.eval(`(() => {
-      const inp=document.getElementById('f-size-custom'); inp.value='160A';
-      document.getElementById('f-size-add').click();
       const t=document.getElementById('f-tag-custom'); t.value='闺蜜同款';
       document.getElementById('f-tag-add').click();
       return 'ok';
     })()`);
     await sleep(400);
     const customChips = await cdp.eval(`(() => ({
-      sizeChip: !!document.querySelector('#f-size-chips .chip[data-size="160A"]'),
-      sizeActive: !!document.querySelector('#f-size-chips .chip[data-size="160A"].is-active'),
       tagChip: !!document.querySelector('#f-tag-chips .chip[data-tag="闺蜜同款"]'),
       tagActive: !!document.querySelector('#f-tag-chips .chip[data-tag="闺蜜同款"].is-active')
     }))()`);
-    check('可以添加自定义尺码并自动选中', customChips.sizeChip && customChips.sizeActive, JSON.stringify(customChips));
     check('可以添加自定义标签并自动选中', customChips.tagChip && customChips.tagActive, JSON.stringify(customChips));
 
     // 自定义项要持久化
@@ -267,10 +262,9 @@ const BASE = process.argv[2] || 'http://127.0.0.1:8899/index.html';
     await cdp.eval(`document.getElementById('fab').click(); 'ok'`);
     await sleep(600);
     const customPersist = await cdp.eval(`(() => ({
-      size: !!document.querySelector('#f-size-chips .chip[data-size="160A"]'),
       tag: !!document.querySelector('#f-tag-chips .chip[data-tag="闺蜜同款"]')
     }))()`);
-    check('自定义尺码/标签重新打开后仍在', customPersist.size && customPersist.tag, JSON.stringify(customPersist));
+    check('自定义标签重新打开后仍在', customPersist.tag, JSON.stringify(customPersist));
 
     await cdp.eval(`document.querySelector('#sheet-form [data-close]').click(); 'ok'`);
     await sleep(500);
@@ -360,7 +354,7 @@ const BASE = process.argv[2] || 'http://127.0.0.1:8899/index.html';
       // 直接写一条旧格式记录，绕过 normalize，模拟历史备份
       await window.DB.putProduct({
         id: 'legacy-1', name: '旧格式商品', code: 'OLD1', price: 200,
-        singlePrice: 88, singleMode: 'single', sizes: ['M'], tags: ['旧数据'], note: '',
+        singlePrice: 88, singleMode: 'single', tags: ['旧数据'], note: '',
         hasImage: false, createdAt: Date.now(), updatedAt: Date.now()
       });
       return 'ok';
@@ -571,7 +565,7 @@ const BASE = process.argv[2] || 'http://127.0.0.1:8899/index.html';
     await cdp.send('Page.navigate', { url: BASE });
     await sleep(2000);
 
-    // ---------- 重复标签 / 尺码去重 ----------
+    // ---------- 重复标签去重 ----------
     // 注意：每次点击后 chip 会重新渲染，必须重新查询节点
     await cdp.eval(`document.getElementById('fab').click(); 'ok'`);
     await sleep(500);
@@ -586,54 +580,43 @@ const BASE = process.argv[2] || 'http://127.0.0.1:8899/index.html';
       await cdp.eval(`(() => { const c=document.querySelector('#f-tag-chips .chip[data-tag="夏款"]'); c.click(); return ${step}; })()`);
       await sleep(180);
     }
-    for (const step of [1, 2]) {
-      await cdp.eval(`(() => { const c=document.querySelector('#f-size-chips .chip[data-size="M"]'); c.click(); return ${step}; })()`);
-      await sleep(180);
-    }
     const chipToggles = await cdp.eval(`(() => ({
       tags: [...document.querySelectorAll('#f-tag-chips .chip.is-active')].map(x=>x.dataset.tag),
-      sizes: [...document.querySelectorAll('#f-size-chips .chip.is-active')].map(x=>x.dataset.size)
     }))()`);
-    check('标签/尺码点击可以反复切换',
-      chipToggles.tags.join(',') === '夏款' && chipToggles.sizes.join(',') === '',
+    check('标签点击可以反复切换',
+      chipToggles.tags.join(',') === '夏款',
       JSON.stringify(chipToggles));
 
     // 再用自定义输入重复添加已存在的项：应只选中、不产生重复选项
     await cdp.eval(`(() => {
       const t=document.getElementById('f-tag-custom'); t.value='夏款';
       document.getElementById('f-tag-add').click();
-      const s=document.getElementById('f-size-custom'); s.value='M';
-      document.getElementById('f-size-add').click();
       return 'ok';
     })()`);
     await sleep(400);
     const dupChips = await cdp.eval(`(() => ({
       tagChips: [...document.querySelectorAll('#f-tag-chips .chip')].filter(c=>c.dataset.tag==='夏款').length,
-      sizeChips: [...document.querySelectorAll('#f-size-chips .chip')].filter(c=>c.dataset.size==='M').length,
-      customSizesStored: null
     }))()`);
-    check('重复添加已有标签/尺码不会产生重复选项',
-      dupChips.tagChips === 1 && dupChips.sizeChips === 1, JSON.stringify(dupChips));
+    check('重复添加已有标签不会产生重复选项',
+      dupChips.tagChips === 1, JSON.stringify(dupChips));
 
     await cdp.eval(`document.getElementById('f-save').click(); 'ok'`);
     await sleep(1300);
     const dedup = await cdp.eval(`(async () => {
       const rows = await window.DB.allProducts();
       const p = rows.find(r => r.name === '去重测试');
-      return p ? { tags: p.tags, sizes: p.sizes } : null;
+      return p ? { tags: p.tags } : null;
     })()`);
-    check('保存后的标签尺码无重复项',
-      dedup && dedup.tags.length === 1 && dedup.tags[0] === '夏款' &&
-      dedup.sizes.length === 1 && dedup.sizes[0] === 'M',
+    check('保存后的标签无重复项',
+      dedup && dedup.tags.length === 1 && dedup.tags[0] === '夏款',
       JSON.stringify(dedup));
 
     const customStored = await cdp.eval(`(async () => {
-      const s = await window.DB.getMeta('customSizes', []);
       const t = await window.DB.getMeta('customTags', []);
-      return { sizes: s, tags: t };
+      return { tags: t };
     })()`);
-    check('输入预设尺码不会污染自定义列表',
-      customStored.sizes.indexOf('M') === -1 && customStored.tags.indexOf('夏款') === -1,
+    check('输入预设标签不会污染自定义列表',
+      customStored.tags.indexOf('夏款') === -1,
       JSON.stringify(customStored));
 
     // ---------- 大数据量性能 ----------
@@ -652,7 +635,6 @@ const BASE = process.argv[2] || 'http://127.0.0.1:8899/index.html';
           price: 50 + (i % 200),
           singleItems: i % 3 === 0 ? [{ name: '上衣', price: 30 + (i % 50) }] : [],
           singleMode: ['single','no','set','ask'][i % 4],
-          sizes: [['S','M'],['M','L'],['均码'],['XL']][i % 4],
           tags: [['夏款'],['冬款'],['爆款'],['清仓']][i % 4],
           note: '', hasImage: false, createdAt: now - i * 1000, updatedAt: now - i * 1000
         });
@@ -768,7 +750,6 @@ const BASE = process.argv[2] || 'http://127.0.0.1:8899/index.html';
       const rp = row.querySelector('[data-single="price"]');
       rn.value='上衣'; rn.dispatchEvent(new Event('input',{bubbles:true}));
       rp.value='78'; rp.dispatchEvent(new Event('input',{bubbles:true}));
-      document.querySelector('#f-size-chips .chip[data-size="M"]').click();
       return 'ok';
     })()`);
     await sleep(200);

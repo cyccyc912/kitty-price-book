@@ -173,8 +173,6 @@ function check(name, ok, detail) {
       const p0 = r0.querySelector('[data-single="price"]');
       n0.value = '上衣'; n0.dispatchEvent(new Event('input', { bubbles: true }));
       p0.value = '89'; p0.dispatchEvent(new Event('input', { bubbles: true }));
-      document.querySelector('#f-size-chips .chip[data-size="M"]').click();
-      document.querySelector('#f-size-chips .chip[data-size="L"]').click();
       document.querySelector('#f-tag-chips .chip[data-tag="夏款"]').click();
       return 'ok';
     })()`);
@@ -210,7 +208,6 @@ function check(name, ok, detail) {
       set('f-code', 'B2088');
       set('f-price', '159');
       document.querySelector('#f-mode .seg__item[data-mode="no"]').click();
-      document.querySelector('#f-size-chips .chip[data-size="均码"]').click();
       return 'ok';
     })()`);
     await sleep(200);
@@ -267,7 +264,7 @@ function check(name, ok, detail) {
     check('详情区分售价与单卖', detail.text.includes('售价（整套 / 默认）') && detail.text.includes('单卖'), detail.text.slice(0, 80));
     check('详情显示 ¥199 与 ¥89', detail.text.includes('¥199') && detail.text.includes('¥89'));
     check('详情显示单卖项名称', detail.text.includes('上衣'), detail.text.slice(0, 120));
-    check('详情显示尺码标签备注', detail.text.includes('M / L') && detail.text.includes('#夏款') && detail.text.includes('只有 M 码了'));
+    check('详情显示标签与备注', detail.text.includes('#夏款') && detail.text.includes('只有 M 码了'));
 
     await cdp.send('Page.captureScreenshot', {}).then(async (r) => {
       fs.writeFileSync(path.join(SHOT_DIR, 'detail.png'), Buffer.from(r.data, 'base64'));
@@ -284,7 +281,6 @@ function check(name, ok, detail) {
       singleNames: [...document.querySelectorAll('#f-single-list [data-single="name"]')].map(x=>x.value),
       singlePrices: [...document.querySelectorAll('#f-single-list [data-single="price"]')].map(x=>x.value),
       mode: (document.querySelector('#f-mode .seg__item.is-active')||{}).dataset ? document.querySelector('#f-mode .seg__item.is-active').dataset.mode : null,
-      sizes: [...document.querySelectorAll('#f-size-chips .chip.is-active')].map(x=>x.dataset.size),
       tags: [...document.querySelectorAll('#f-tag-chips .chip.is-active')].map(x=>x.dataset.tag)
     }))()`);
     check('编辑会回填表单', editState.open && editState.title === '编辑商品' && editState.name === '粉色碎花连衣裙',
@@ -293,7 +289,7 @@ function check(name, ok, detail) {
     check('编辑回填单卖项名称与价格',
       editState.singleNames.join(',') === '上衣' && editState.singlePrices.join(',') === '89',
       JSON.stringify({ n: editState.singleNames, p: editState.singlePrices }));
-    check('编辑回填尺码与标签', editState.sizes.join(',') === 'M,L' && editState.tags.join(',') === '夏款');
+    check('编辑回填标签', editState.tags.join(',') === '夏款');
 
     // ---------- 多单卖项：新增两条，验证列表显示最低价 ----------
     await cdp.eval(`(() => {
@@ -360,13 +356,6 @@ function check(name, ok, detail) {
     q = await cdp.eval(`document.querySelectorAll('#s-list .card').length`);
     check('按标签 chip 筛选', q === 1, '命中 ' + q);
 
-    // 尺码筛选 chip
-    await cdp.eval(`(() => { const c=document.querySelector('#s-tags .chip[data-tag=""]'); if(c) c.click(); return 'ok'; })()`);
-    await sleep(300);
-    await cdp.eval(`(() => { const c=document.querySelector('#s-sizes .chip[data-size="均码"]'); if(c) c.click(); return 'ok'; })()`);
-    await sleep(450);
-    q = await cdp.eval(`document.querySelectorAll('#s-list .card').length`);
-    check('按尺码 chip 筛选', q === 1, '命中 ' + q);
     await cdp.send('Page.captureScreenshot', {}).then(async (r) => {
       fs.writeFileSync(path.join(SHOT_DIR, 'search.png'), Buffer.from(r.data, 'base64'));
     });
@@ -402,15 +391,13 @@ function check(name, ok, detail) {
     await cdp.eval(`(() => { const el=document.getElementById('p-sort'); el.value='new'; el.dispatchEvent(new Event('change',{bubbles:true})); return 'ok'; })()`);
     await sleep(300);
 
-    // ---------- 商品页 标签 / 尺码 筛选 ----------
+    // ---------- 商品页 标签筛选 ----------
     const pFilterChips = await cdp.eval(`(() => ({
       tags: [...document.querySelectorAll('#p-tags .chip')].map(c=>c.dataset.tag),
-      sizes: [...document.querySelectorAll('#p-sizes .chip')].map(c=>c.dataset.size),
       tagBlockShown: !document.getElementById('p-tag-block').hidden,
-      sizeBlockShown: !document.getElementById('p-size-block').hidden
+      sizeBlockShown: true
     }))()`);
     check('商品页显示标签筛选项', pFilterChips.tagBlockShown && pFilterChips.tags.includes('夏款'), JSON.stringify(pFilterChips.tags));
-    check('商品页显示尺码筛选项', pFilterChips.sizeBlockShown && pFilterChips.sizes.includes('均码'), JSON.stringify(pFilterChips.sizes));
 
     await cdp.eval(`(() => { const c=document.querySelector('#p-tags .chip[data-tag="夏款"]'); c.click(); return 'ok'; })()`);
     await sleep(400);
@@ -418,13 +405,6 @@ function check(name, ok, detail) {
     check('商品页按标签筛选', f === 1, '命中 ' + f);
 
     await cdp.eval(`(() => { const c=document.querySelector('#p-tags .chip[data-tag=""]'); c.click(); return 'ok'; })()`);
-    await sleep(300);
-    await cdp.eval(`(() => { const c=document.querySelector('#p-sizes .chip[data-size="均码"]'); c.click(); return 'ok'; })()`);
-    await sleep(400);
-    f = await cdp.eval(`document.querySelectorAll('#p-list .card').length`);
-    check('商品页按尺码筛选', f === 1, '命中 ' + f);
-
-    await cdp.eval(`(() => { const c=document.querySelector('#p-sizes .chip[data-size=""]'); c.click(); return 'ok'; })()`);
     await sleep(300);
     f = await cdp.eval(`document.querySelectorAll('#p-list .card').length`);
     check('清除筛选后恢复全部', f === 3, 'count=' + f);
@@ -735,6 +715,77 @@ function check(name, ok, detail) {
     check('底部导航贴底显示', Math.abs(layout.tabbarBottom - layout.vh) <= 1, JSON.stringify(layout));
     check('无横向溢出', layout.overflowX === false);
     check('点击区域足够大（>=44px）', layout.minTap >= 44, 'min=' + layout.minTap);
+
+    // ---------- 真实触摸事件（回归防护）----------
+    // 曾经的 bug：用 touchend + preventDefault 防双击缩放，把随后的 click 一起取消，
+    // 导致"连点两个按钮时第二个没反应"。这里用真实触摸序列验证所有关键按钮可用。
+    await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
+    await cdp.eval(`(async () => { await window.DB.clearAll(); await window.DB.setMeta('draft', null); return 'ok'; })()`);
+    await cdp.send('Page.navigate', { url: BASE });
+    await sleep(2500);
+
+    // 先把元素滚进视野，再用真实触摸序列点击
+    async function tapByTouch(selector) {
+      const box = await cdp.eval(`(() => {
+        const el = document.querySelector(${JSON.stringify(selector)});
+        if (!el) return null;
+        el.scrollIntoView({ block: 'center', behavior: 'instant' });
+        const r = el.getBoundingClientRect();
+        return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height };
+      })()`);
+      if (!box) return false;
+      await sleep(220);
+      // scrollIntoView 之后重新取一次坐标，避免用到旧位置
+      const pos = await cdp.eval(`(() => {
+        const el = document.querySelector(${JSON.stringify(selector)});
+        const r = el.getBoundingClientRect();
+        return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+      })()`);
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [pos] });
+      await sleep(50);
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      await sleep(340);
+      return true;
+    }
+
+    let touchOk = await tapByTouch('#fab');
+    await sleep(500);
+    const t1 = await cdp.eval(`!document.getElementById('sheet-form').hidden`);
+    check('触摸点击「+」能打开表单', touchOk && t1, 'formOpen=' + t1);
+
+    await tapByTouch('#f-mode .seg__item[data-mode="single"]');
+    const t2 = await cdp.eval(`(document.querySelector('#f-mode .seg__item.is-active')||{dataset:{}}).dataset.mode`);
+    check('触摸点击「可单卖」能选中', t2 === 'single', t2);
+
+    // 连续快速触摸两个不同的按钮 —— 这正是旧 bug 会失败的场景
+    await tapByTouch('#f-tag-chips .chip');
+    await tapByTouch('#f-tag-chips .chip:nth-child(2)');
+    const t3 = await cdp.eval(`document.querySelectorAll('#f-tag-chips .chip.is-active').length`);
+    check('连续触摸两个标签都能生效（防连点吞事件回归）', t3 === 2, '选中 ' + t3 + ' 个');
+
+    await tapByTouch('#f-single-add');
+    const t4 = await cdp.eval(`document.querySelectorAll('#f-single-list .single-row').length`);
+    check('触摸点击「添加单卖项」能增加一行', t4 === 2, '共 ' + t4 + ' 行');
+
+    await tapByTouch('#f-photo-btn');
+    const t5 = await cdp.eval(`!document.getElementById('sheet-form').hidden`);
+    check('触摸点击图片选择不报错', t5 === true);
+
+    // 用「取消」按钮本体（.text-btn），不要用 [data-close]（那个也会选中遮罩层）
+    await tapByTouch('#sheet-form .text-btn');
+    await sleep(500);
+    const t6 = await cdp.eval(`document.getElementById('sheet-form').hidden`);
+    check('触摸点击「取消」能关闭表单', t6 === true);
+
+    await tapByTouch('.tab[data-view="settings"]');
+    const t7 = await cdp.eval(`document.getElementById('view-settings').classList.contains('is-active')`);
+    check('触摸点击「设置」能切换页面', t7 === true);
+
+    await tapByTouch('.tab[data-view="products"]');
+    const t8 = await cdp.eval(`document.getElementById('view-products').classList.contains('is-active')`);
+    check('触摸点击「商品」能切回列表', t8 === true);
+
+    check('触摸操作后仍无未捕获页面错误', pageErrors.length === 0, pageErrors.slice(0, 3).join(' | '));
 
   } catch (err) {
     check('测试执行', false, err.message);

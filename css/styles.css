@@ -75,11 +75,18 @@ body {
   overscroll-behavior-y: none;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
+  /* 由浏览器原生抑制双击缩放，不干扰 click（不要改用 JS 拦 touchend） */
+  touch-action: manipulation;
 }
 
 /* iOS 上输入框字号 <16px 会触发自动放大，这里统一 16px */
 input, select, textarea, button { font-family: inherit; font-size: 16px; color: inherit; }
 input[type="search"]::-webkit-search-cancel-button { display: none; }
+
+/* 所有可点元素都禁用双击缩放，保证连点两次两个不同按钮都能生效 */
+button, a, label, select, input, textarea, [role="button"] {
+  touch-action: manipulation;
+}
 
 button { cursor: pointer; border: none; background: none; padding: 0; }
 img { max-width: 100%; display: block; }
@@ -212,7 +219,6 @@ h1, h2, h3, p { margin: 0; }
   box-shadow: 0 3px 10px rgba(240, 97, 156, .32);
 }
 .chip--tag.is-active { background: linear-gradient(135deg, #b9a0f0, #8f6ee0); box-shadow: 0 3px 10px rgba(143, 110, 224, .3); }
-.chip--size.is-active { background: linear-gradient(135deg, #8fd0f5, #4d9fdc); box-shadow: 0 3px 10px rgba(77, 159, 220, .3); }
 
 /* ---------------- 排序行 ---------------- */
 .sort-row {
@@ -389,13 +395,6 @@ h1, h2, h3, p { margin: 0; }
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.size-mini {
-  font-size: 10.5px;
-  color: var(--blue-600);
-  background: #eaf4fd;
-  border-radius: 6px;
-  padding: 2px 7px;
 }
 .card__note {
   font-size: 11.5px;

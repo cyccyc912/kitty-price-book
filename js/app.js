@@ -20,7 +20,6 @@
   };
   var MODE_ORDER = ['single', 'no', 'set', 'ask'];
 
-  var PRESET_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '均码', '90', '100', '110', '120', '130', '140', '150', '160'];
   var PRESET_TAGS = ['夏款', '冬款', '春秋款', '连衣裙', '上衣', '裤子', '外套', '套装', '童装', '亲子装', '爆款', '特价', '新品', '清仓'];
 
   var IMG_MAX = 800;       // 原图最长边
@@ -111,16 +110,14 @@
     draft: null,            // 表单草稿（含图片 blob）
     formImage: null,        // { blob, thumb, w, h, bytes, previewUrl } 或 null
     formImageCleared: false,
-    formSizes: [],
     formTags: [],
     formSingleItems: [],
-    customSizes: [],
     customTags: [],
     lastBackupAt: 0,
     remindBackup: true,
     filters: {
-      p: { mode: 'all', tag: null, size: null, sort: 'new' },
-      s: { query: '', mode: 'all', tag: null, size: null, sort: 'new' }
+      p: { mode: 'all', tag: null, sort: 'new' },
+      s: { query: '', mode: 'all', tag: null, sort: 'new' }
     },
     query: '',
     searchMode: 'all'
@@ -440,7 +437,6 @@
       price: parsePrice(raw.price),
       singleItems: normalizeSingleItems(raw.singleItems, raw.singlePrice),
       singleMode: mode,
-      sizes: Array.isArray(raw.sizes) ? uniq(raw.sizes) : [],
       tags: Array.isArray(raw.tags) ? uniq(raw.tags) : [],
       note: String(raw.note || '').trim(),
       hasImage: !!raw.hasImage,
@@ -511,8 +507,7 @@
     var needle = q.toLowerCase();
     var hay = [
       p.name, p.code, p.note,
-      (p.tags || []).join(' '),
-      (p.sizes || []).join(' ')
+      (p.tags || []).join(' ')
     ].join(' ').toLowerCase();
     // 空格分词，全部命中才算匹配
     var parts = needle.split(/\s+/).filter(Boolean);
@@ -548,7 +543,6 @@
     var list = state.products.filter(function (p) {
       if (f.mode && f.mode !== 'all' && p.singleMode !== f.mode) return false;
       if (f.tag && (p.tags || []).indexOf(f.tag) === -1) return false;
-      if (f.size && (p.sizes || []).indexOf(f.size) === -1) return false;
       if (f.query && !matchQuery(p, f.query)) return false;
       return true;
     });
@@ -559,20 +553,6 @@
     var out = [];
     state.products.forEach(function (p) { out = out.concat(p.tags || []); });
     return uniq(out).sort(function (a, b) { return a.localeCompare(b, 'zh-Hans-CN'); });
-  }
-
-  function allSizes() {
-    var out = [];
-    state.products.forEach(function (p) { out = out.concat(p.sizes || []); });
-    var list = uniq(out);
-    list.sort(function (a, b) {
-      var ai = PRESET_SIZES.indexOf(a), bi = PRESET_SIZES.indexOf(b);
-      if (ai >= 0 && bi >= 0) return ai - bi;
-      if (ai >= 0) return -1;
-      if (bi >= 0) return 1;
-      return a.localeCompare(b, 'zh-Hans-CN');
-    });
-    return list;
   }
 
   /* ============================================================
@@ -635,10 +615,7 @@
     }
 
     var metaHtml = '';
-    (p.sizes || []).slice(0, 4).forEach(function (s) {
-      metaHtml += '<span class="size-mini">' + escapeHtml(s) + '</span>';
-    });
-    (p.tags || []).slice(0, 3).forEach(function (t) {
+    (p.tags || []).slice(0, 4).forEach(function (t) {
       metaHtml += '<span class="tag-mini">#' + escapeHtml(t) + '</span>';
     });
 
@@ -721,7 +698,7 @@
     var f = state.filters.p;
     var items = filterProducts(f);
     var hasAny = state.products.length > 0;
-    var noFilter = f.mode === 'all' && !f.tag && !f.size;
+    var noFilter = f.mode === 'all' && !f.tag;
     var empty = (hasAny && !noFilter) ? { html: NO_RESULT_HTML } : { html: EMPTY_PRODUCTS_HTML };
     renderListInto($('#p-list'), $('#p-state'), items, empty);
     $('#p-count').textContent = items.length + ' / ' + state.products.length + ' 件';
@@ -745,34 +722,19 @@
       var tagBox = $('#p-tags');
       if (tagBox.dataset.sig !== tagHtml) { tagBox.dataset.sig = tagHtml; tagBox.innerHTML = tagHtml; }
     }
-
-    // 尺码筛选
-    var sizes = allSizes();
-    var sizeBlock = $('#p-size-block');
-    if (!sizes.length) {
-      sizeBlock.hidden = true;
-    } else {
-      sizeBlock.hidden = false;
-      var sizeHtml = '<button class="chip chip--size' + (f.size ? '' : ' is-active') + '" type="button" data-size="">全部尺码</button>';
-      sizes.forEach(function (s) {
-        sizeHtml += '<button class="chip chip--size' + (f.size === s ? ' is-active' : '') + '" type="button" data-size="' + escapeHtml(s) + '">' + escapeHtml(s) + '</button>';
-      });
-      var sizeBox = $('#p-sizes');
-      if (sizeBox.dataset.sig !== sizeHtml) { sizeBox.dataset.sig = sizeHtml; sizeBox.innerHTML = sizeHtml; }
-    }
   }
 
   function renderSearchView() {
     var f = state.filters.s;
     var items = filterProducts(f);
-    var noQuery = !f.query && f.mode === 'all' && !f.tag && !f.size;
+    var noQuery = !f.query && f.mode === 'all' && !f.tag;
 
     var empty;
     if (noQuery) {
       empty = {
         html: '<div class="state__art">' + EMPTY_KITTY_SVG + '</div>' +
               '<p class="state__title">想找哪件衣服？</p>' +
-              '<p class="state__desc">输入商品名、货号或标签<br>也可以点下面的标签、尺码快速筛选</p>'
+              '<p class="state__desc">输入商品名、货号或标签<br>也可以点下面的标签快速筛选</p>'
       };
     } else {
       empty = { html: NO_RESULT_HTML };
@@ -796,24 +758,6 @@
       if (tagBox.dataset.sig !== tagHtml) {
         tagBox.dataset.sig = tagHtml;
         tagBox.innerHTML = tagHtml;
-      }
-    }
-
-    // 尺码筛选
-    var sizes = allSizes();
-    var sizeBlock = $('#s-size-block');
-    var sizeBox = $('#s-sizes');
-    if (!sizes.length) {
-      sizeBlock.hidden = true;
-    } else {
-      sizeBlock.hidden = false;
-      var sizeHtml = '<button class="chip chip--size' + (f.size ? '' : ' is-active') + '" type="button" data-size="">全部尺码</button>';
-      sizes.forEach(function (s) {
-        sizeHtml += '<button class="chip chip--size' + (f.size === s ? ' is-active' : '') + '" type="button" data-size="' + escapeHtml(s) + '">' + escapeHtml(s) + '</button>';
-      });
-      if (sizeBox.dataset.sig !== sizeHtml) {
-        sizeBox.dataset.sig = sizeHtml;
-        sizeBox.innerHTML = sizeHtml;
       }
     }
   }
@@ -922,7 +866,6 @@
     $('#f-code').value = p ? p.code : '';
     $('#f-price').value = p && p.price != null ? fmtMoney(p.price) : '';
     $('#f-note').value = p ? p.note : '';
-    state.formSizes = p ? (p.sizes || []).slice() : [];
     state.formTags = p ? (p.tags || []).slice() : [];
     // 单卖项：编辑时回填，新增时先给一条空行方便直接填
     state.formSingleItems = p ? (p.singleItems || []).map(function (it) { return { name: it.name || '', price: it.price }; })
@@ -950,7 +893,6 @@
       });
     }
 
-    renderSizeChips();
     renderTagChips();
     openSheet('form');
     setTimeout(function () {
@@ -982,7 +924,6 @@
       singleItems: rawRows.length ? rawRows : items,
       note: $('#f-note').value,
       mode: currentMode(),
-      sizes: state.formSizes.slice(),
       tags: state.formTags.slice(),
       image: state.formImage
         ? { blob: state.formImage.blob, w: state.formImage.w, h: state.formImage.h, bytes: state.formImage.bytes }
@@ -1023,7 +964,6 @@
     $('#f-code').value = d.code || '';
     $('#f-price').value = d.price || '';
     $('#f-note').value = d.note || '';
-    state.formSizes = Array.isArray(d.sizes) ? d.sizes.slice() : [];
     state.formTags = Array.isArray(d.tags) ? d.tags.slice() : [];
     // 兼容旧草稿（single 单值）与新草稿（singleItems 数组）
     if (Array.isArray(d.singleItems)) {
@@ -1036,7 +976,6 @@
       state.formSingleItems = [{ name: '', price: null }];
     }
     setMode(d.mode || 'single');
-    renderSizeChips();
     renderTagChips();
     if (d.image && d.image.blob instanceof Blob) {
       state.formImage = { blob: d.image.blob, thumb: null, w: d.image.w || 0, h: d.image.h || 0, bytes: d.image.bytes || d.image.blob.size };
@@ -1076,15 +1015,6 @@
   function currentMode() {
     var active = $('#f-mode .seg__item.is-active');
     return active ? active.dataset.mode : 'ask';
-  }
-
-  function renderSizeChips() {
-    var pool = uniq(PRESET_SIZES.concat(state.customSizes));
-    var html = pool.map(function (s) {
-      var on = state.formSizes.indexOf(s) >= 0;
-      return '<button class="chip' + (on ? ' is-active' : '') + '" type="button" data-size="' + escapeHtml(s) + '" aria-pressed="' + (on ? 'true' : 'false') + '">' + escapeHtml(s) + '</button>';
-    }).join('');
-    $('#f-size-chips').innerHTML = html;
   }
 
   function renderTagChips() {
@@ -1225,7 +1155,6 @@
       price: $('#f-price').value,
       singleItems: singleItems,
       singleMode: mode,
-      sizes: state.formSizes,
       tags: state.formTags,
       note: $('#f-note').value,
       hasImage: base ? base.hasImage : false,
@@ -1340,7 +1269,6 @@
     var rows = '';
     rows += '<div class="detail-row"><span class="detail-row__k">状态</span><span class="detail-row__v">' + modeBadge(p) + '</span></div>';
     rows += '<div class="detail-row"><span class="detail-row__k">货号</span><span class="detail-row__v' + (p.code ? '' : ' detail-row__v--muted') + '">' + (p.code ? escapeHtml(p.code) : '未填写') + '</span></div>';
-    rows += '<div class="detail-row"><span class="detail-row__k">尺码</span><span class="detail-row__v' + (p.sizes.length ? '' : ' detail-row__v--muted') + '">' + (p.sizes.length ? p.sizes.map(escapeHtml).join(' / ') : '未填写') + '</span></div>';
     rows += '<div class="detail-row"><span class="detail-row__k">标签</span><span class="detail-row__v' + (p.tags.length ? '' : ' detail-row__v--muted') + '">' + (p.tags.length ? p.tags.map(function (t) { return '#' + escapeHtml(t); }).join(' ') : '未填写') + '</span></div>';
     rows += '<div class="detail-row"><span class="detail-row__k">添加时间</span><span class="detail-row__v detail-row__v--muted">' + fmtDate(p.createdAt) + '</span></div>';
 
@@ -1439,7 +1367,6 @@
       lines.push('单卖：' + m.label);
     }
 
-    if (p.sizes.length) lines.push('尺码：' + p.sizes.join(' / '));
     if (p.tags.length) lines.push('标签：' + p.tags.join(' / '));
     if (p.note) lines.push('备注：' + p.note);
     return lines.join('\n');
@@ -1675,26 +1602,26 @@
     var raw = [
       { name: '粉色碎花连衣裙', code: 'A1023', price: 199,
         singleItems: [{ name: '上衣', price: 89 }], singleMode: 'single',
-        sizes: ['S', 'M', 'L'], tags: ['夏款', '连衣裙', '爆款'], note: '只有 M 码了，面料偏薄' },
+        tags: ['夏款', '连衣裙', '爆款'], note: '只有 M 码了，面料偏薄' },
       { name: '奶白针织开衫', code: 'B2088', price: 159,
         singleItems: [], singleMode: 'no',
-        sizes: ['均码'], tags: ['春秋款', '上衣'], note: '整套两件套，不拆卖' },
+        tags: ['春秋款', '上衣'], note: '整套两件套，不拆卖' },
       { name: '牛仔背带裤三件套', code: 'C3311', price: 268,
         singleItems: [{ name: '上衣', price: 99 }, { name: '裤子', price: 89 }, { name: '内搭', price: 49 }],
         singleMode: 'single',
-        sizes: ['M', 'L', 'XL'], tags: ['套装', '春秋款'], note: '三件套，可以拆开单卖' },
+        tags: ['套装', '春秋款'], note: '三件套，可以拆开单卖' },
       { name: '小熊卫衣亲子装', code: 'D4512', price: 128,
         singleItems: [{ name: '大人款', price: 88 }, { name: '儿童款', price: 58 }], singleMode: 'single',
-        sizes: ['100', '120', '140'], tags: ['童装', '亲子装', '新品'], note: '大人小孩同款' },
+        tags: ['童装', '亲子装', '新品'], note: '大人小孩同款' },
       { name: '格纹半身裙', code: 'E5107', price: 118,
         singleItems: [], singleMode: 'ask',
-        sizes: ['S', 'M'], tags: ['春秋款'], note: '单卖要问一下上家' }
+        tags: ['春秋款'], note: '单卖要问一下上家' }
     ];
     return raw.map(function (r, i) {
       return normalizeProduct({
         id: DB.uuid(),
         name: r.name, code: r.code, price: r.price, singleItems: r.singleItems,
-        singleMode: r.singleMode, sizes: r.sizes, tags: r.tags, note: r.note,
+        singleMode: r.singleMode, tags: r.tags, note: r.note,
         hasImage: false,
         createdAt: now - i * 60000,
         updatedAt: now - i * 60000
@@ -1765,13 +1692,6 @@
       renderProductsView();
     });
 
-    $('#p-sizes').addEventListener('click', function (e) {
-      var chip = e.target.closest('.chip');
-      if (!chip) return;
-      state.filters.p.size = chip.dataset.size || null;
-      renderProductsView();
-    });
-
     $('#p-sort').addEventListener('change', function () {
       state.filters.p.sort = this.value;
       renderProductsView();
@@ -1804,13 +1724,6 @@
       var chip = e.target.closest('.chip');
       if (!chip) return;
       state.filters.s.tag = chip.dataset.tag || null;
-      renderSearchView();
-    });
-
-    $('#s-sizes').addEventListener('click', function (e) {
-      var chip = e.target.closest('.chip');
-      if (!chip) return;
-      state.filters.s.size = chip.dataset.size || null;
       renderSearchView();
     });
 
@@ -1858,32 +1771,11 @@
       });
     });
 
-    $('#f-size-chips').addEventListener('click', function (e) {
-      var chip = e.target.closest('.chip');
-      if (!chip) return;
-      toggleInArray(state.formSizes, chip.dataset.size);
-      renderSizeChips();
-    });
-
     $('#f-tag-chips').addEventListener('click', function (e) {
       var chip = e.target.closest('.chip');
       if (!chip) return;
       toggleInArray(state.formTags, chip.dataset.tag);
       renderTagChips();
-    });
-
-    $('#f-size-add').addEventListener('click', function () {
-      var v = $('#f-size-custom').value.trim();
-      if (!v) return;
-      // 已经是预设尺码就不重复塞进自定义列表，只做选中
-      var isPreset = PRESET_SIZES.some(function (s) { return s.toLowerCase() === v.toLowerCase(); });
-      if (!isPreset) {
-        state.customSizes = uniq(state.customSizes.concat([v]));
-        DB.setMeta('customSizes', state.customSizes);
-      }
-      if (state.formSizes.indexOf(v) === -1) state.formSizes.push(v);
-      $('#f-size-custom').value = '';
-      renderSizeChips();
       saveDraftSoon();
     });
 
@@ -1901,13 +1793,11 @@
       saveDraftSoon();
     });
 
-    ['f-size-custom', 'f-tag-custom'].forEach(function (id) {
-      $('#' + id).addEventListener('keydown', function (e) {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          $(id === 'f-size-custom' ? '#f-size-add' : '#f-tag-add').click();
-        }
-      });
+    $('#f-tag-custom').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        $('#f-tag-add').click();
+      }
     });
 
     $('#f-name').addEventListener('input', function () {
@@ -2122,19 +2012,16 @@
       }
     });
 
-    /* ---- 防止 iOS 双击缩放 ---- */
-    var lastTouch = 0;
-    document.addEventListener('touchend', function (e) {
-      var now = Date.now();
-      if (now - lastTouch <= 300) e.preventDefault();
-      lastTouch = now;
-    }, { passive: false });
+    /* ---- 防止 iOS 双击缩放 ----
+       注意：这里不要用 touchend + preventDefault。
+       那样会把紧随其后的 click 事件一起取消掉，导致"连点两个按钮时第二个没反应"。
+       正确做法是 CSS 的 touch-action: manipulation（见 styles.css），
+       由浏览器原生处理双击缩放，不干扰 click。 */
   }
 
   function resetProductFilters() {
     state.filters.p.mode = 'all';
     state.filters.p.tag = null;
-    state.filters.p.size = null;
     $$('#p-chips .chip').forEach(function (c) {
       c.classList.toggle('is-active', c.dataset.filter === 'all');
     });
@@ -2145,7 +2032,6 @@
     state.filters.s.query = '';
     state.filters.s.mode = 'all';
     state.filters.s.tag = null;
-    state.filters.s.size = null;
     $('#s-input').value = '';
     renderSearchView();
   }
@@ -2198,15 +2084,13 @@
         DB.allProducts(),
         DB.getMeta('lastBackupAt', 0),
         DB.getMeta('remindBackup', true),
-        DB.getMeta('customSizes', []),
         DB.getMeta('customTags', [])
       ]);
     }).then(function (res) {
       state.products = (res[0] || []).map(normalizeProduct);
       state.lastBackupAt = res[1] || 0;
       state.remindBackup = res[2] !== false;
-      state.customSizes = res[3] || [];
-      state.customTags = res[4] || [];
+      state.customTags = res[3] || [];
       $('#set-remind').checked = state.remindBackup;
       state.ready = true;
       renderAll();
@@ -2233,6 +2117,7 @@
     }
 
     // 阻止 iOS 上把整个页面拖拽回弹（弹层内滚动除外）
+    /* ---- 阻止 iOS 双指缩放整个页面（弹层内滚动不受影响）---- */
     document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
   }
 

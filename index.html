@@ -85,11 +85,6 @@
         <div class="chip-row" id="p-tags"></div>
       </div>
 
-      <div class="filter-block" id="p-size-block" hidden>
-        <p class="filter-block__title">按尺码</p>
-        <div class="chip-row" id="p-sizes"></div>
-      </div>
-
       <div class="sort-row">
         <label class="sort-row__label" for="p-sort">排序</label>
         <select class="select" id="p-sort">
@@ -124,11 +119,6 @@
       <div class="filter-block" id="s-tag-block" hidden>
         <p class="filter-block__title">按标签</p>
         <div class="chip-row" id="s-tags"></div>
-      </div>
-
-      <div class="filter-block" id="s-size-block" hidden>
-        <p class="filter-block__title">按尺码</p>
-        <div class="chip-row" id="s-sizes"></div>
       </div>
 
       <div class="sort-row">
@@ -316,16 +306,6 @@
           <span class="single-add__label"> 添加单卖项</span>
         </button>
         <p class="hint" id="f-single-hint">选择「可单卖」后，可以给每件单独卖的部件起名并定价，比如「上衣 ¥89、裤子 ¥79、内搭 ¥49」。</p>
-      </div>
-
-      <!-- 尺码 -->
-      <div class="field">
-        <label class="field__label">尺码 <em class="opt">可多选</em></label>
-        <div class="chip-row chip-row--wrap" id="f-size-chips"></div>
-        <div class="inline-add">
-          <input class="input input--sm" id="f-size-custom" type="text" placeholder="自定义尺码，如 均码/120" maxlength="16" autocomplete="off">
-          <button class="btn btn--soft btn--sm" id="f-size-add" type="button">添加</button>
-        </div>
       </div>
 
       <!-- 标签 -->

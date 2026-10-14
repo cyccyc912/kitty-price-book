@@ -54,8 +54,6 @@ const DIR = path.join(__dirname, '..', '.shots');
       const p2 = r2.querySelector('[data-single="price"]');
       n2.value='内搭'; n2.dispatchEvent(new Event('input',{bubbles:true}));
       p2.value='49'; p2.dispatchEvent(new Event('input',{bubbles:true}));
-      document.querySelector('#f-size-chips .chip[data-size="M"]').click();
-      document.querySelector('#f-tag-chips .chip[data-tag="套装"]') && document.querySelector('#f-tag-chips .chip[data-tag="套装"]').click();
       document.querySelector('#f-tag-chips .chip[data-tag="夏款"]').click();
       return 'ok';
     })()`);
