@@ -132,9 +132,39 @@ function check(name, ok, detail) {
     });
     await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
 
+    /**
+     * 打开页面并等待应用真正就绪。
+     * 线上（GitHub Pages）首次加载要下载 100KB+ 的 app.js 并注册 Service Worker，
+     * 比本地慢得多，固定 sleep 会读到错误状态。
+     */
+    async function gotoApp(timeoutMs) {
+      const limit = timeoutMs || 30000;
+      await cdp.send('Page.navigate', { url: BASE });
+      const start = Date.now();
+      while (Date.now() - start < limit) {
+        await sleep(400);
+        try {
+          const ok = await cdp.eval(`!!(window.DB && document.getElementById('fab') && document.readyState === 'complete')`);
+          if (ok) {
+            await sleep(500);
+            return true;
+          }
+        } catch (e) { /* 页面还在导航中，继续等 */ }
+      }
+      return false;
+    }
+
     // ---------- 打开页面 ----------
-    await cdp.send('Page.navigate', { url: BASE });
-    await sleep(2500);
+    const bootOk = await gotoApp();
+    check('页面在 30 秒内完成加载', bootOk, bootOk ? '' : '超时');
+
+    // 清掉上一次留下的数据，保证断言从空状态出发
+    await cdp.eval(`(async () => {
+      await window.DB.clearAll();
+      await window.DB.setMeta('draft', null);
+      return 'ok';
+    })()`);
+    await gotoApp();
 
     const booted = await cdp.eval(`(() => {
       return {
@@ -567,8 +597,7 @@ function check(name, ok, detail) {
 
     // ---------- 清空后从备份恢复 ----------
     await cdp.eval(`(async () => { await window.DB.clearAll(); return 'ok'; })()`);
-    await cdp.send('Page.navigate', { url: BASE });
-    await sleep(2500);
+    await gotoApp();
     let cur = await cdp.eval(`document.getElementById('stat-total').textContent`);
     check('清空后确实没有数据了', cur === '0', '剩余 ' + cur + ' 件');
 
@@ -627,8 +656,7 @@ function check(name, ok, detail) {
 
 
     // ---------- 持久化：重新加载 ----------
-    await cdp.send('Page.navigate', { url: BASE });
-    await sleep(2600);
+    await gotoApp();
     const after = await cdp.eval(`(() => ({
       count: document.querySelectorAll('#p-list .card').length,
       total: document.getElementById('stat-total').textContent,
@@ -712,8 +740,7 @@ function check(name, ok, detail) {
     // 模拟离线后重新加载
     await cdp.send('Network.enable');
     await cdp.send('Network.emulateNetworkConditions', { offline: true, latency: 0, downloadThroughput: 0, uploadThroughput: 0 });
-    await cdp.send('Page.navigate', { url: BASE });
-    await sleep(3000);
+    await gotoApp();
     const offline = await cdp.eval(`(() => ({
       title: document.title,
       total: document.getElementById('stat-total').textContent,
@@ -752,8 +779,7 @@ function check(name, ok, detail) {
     // 导致"连点两个按钮时第二个没反应"。这里用真实触摸序列验证所有关键按钮可用。
     await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
     await cdp.eval(`(async () => { await window.DB.clearAll(); await window.DB.setMeta('draft', null); return 'ok'; })()`);
-    await cdp.send('Page.navigate', { url: BASE });
-    await sleep(2500);
+    await gotoApp();
 
     // 先把元素滚进视野，再用真实触摸序列点击
     async function tapByTouch(selector) {
