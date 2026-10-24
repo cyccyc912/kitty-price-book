@@ -270,7 +270,31 @@ function check(name, ok, detail) {
       fs.writeFileSync(path.join(SHOT_DIR, 'detail.png'), Buffer.from(r.data, 'base64'));
     });
 
+    // ---------- 只读锁定 ----------
+    const lockedState = await cdp.eval(`(() => {
+      const s = document.getElementById('sheet-detail');
+      const edit = document.getElementById('d-edit');
+      const del = document.getElementById('d-delete');
+      return {
+        locked: s.classList.contains('is-locked'),
+        editVisible: edit ? getComputedStyle(edit).display !== 'none' : false,
+        delVisible: del ? getComputedStyle(del).display !== 'none' : false
+      };
+    })()`);
+    check('详情页默认锁定', lockedState.locked === true, JSON.stringify(lockedState));
+    check('锁定时隐藏编辑与删除', lockedState.editVisible === false && lockedState.delVisible === false,
+      JSON.stringify(lockedState));
+
     // ---------- 编辑 ----------
+    await cdp.eval(`document.getElementById('d-lock').click(); 'ok'`);
+    await sleep(400);
+    const unlockedState = await cdp.eval(`(() => ({
+      locked: document.getElementById('sheet-detail').classList.contains('is-locked'),
+      editVisible: getComputedStyle(document.getElementById('d-edit')).display !== 'none'
+    }))()`);
+    check('解锁后显示编辑按钮', unlockedState.locked === false && unlockedState.editVisible === true,
+      JSON.stringify(unlockedState));
+
     await cdp.eval(`document.getElementById('d-edit').click(); 'ok'`);
     await sleep(700);
     const editState = await cdp.eval(`(() => ({
@@ -430,10 +454,11 @@ function check(name, ok, detail) {
       input.dispatchEvent(new Event('change', { bubbles: true }));
       return { srcSize: blob.size };
     })()`);
-    await sleep(2000);
+    await sleep(2200);
     const imgState = await cdp.eval(`(() => {
-      const img = document.getElementById('f-photo-img');
-      return { shown: !img.hidden, src: (img.getAttribute('src')||'').slice(0,5), natural: img.naturalWidth + 'x' + img.naturalHeight };
+      const slot = document.querySelector('#f-photo-grid .photo-slot--filled img');
+      if (!slot) return { shown: false, natural: '0x0' };
+      return { shown: true, src: (slot.getAttribute('src')||'').slice(0,5), natural: slot.naturalWidth + 'x' + slot.naturalHeight };
     })()`);
     check('选择图片后显示预览', imgState.shown && imgState.src === 'blob:', JSON.stringify(imgState));
     check('图片被压缩到 800px 以内', parseInt(imgState.natural, 10) <= 800, '压缩后 ' + imgState.natural + '（原始 1200x900）');
@@ -461,8 +486,11 @@ function check(name, ok, detail) {
 
     // ---------- 详情页大图 ----------
     await cdp.eval(`(() => { const c=[...document.querySelectorAll('#p-list .card')].find(x=>x.textContent.includes('带图片')); c.click(); return 'ok'; })()`);
-    await sleep(1200);
-    const heroImg = await cdp.eval(`(() => { const i=document.getElementById('d-hero-img'); return { has: !!i, w: i ? i.naturalWidth : 0 }; })()`);
+    await sleep(1500);
+    const heroImg = await cdp.eval(`(() => {
+      const i = document.querySelector('#d-track .carousel__slide img');
+      return { has: !!i, w: i ? i.naturalWidth : 0 };
+    })()`);
     check('详情页显示大图', heroImg.has && heroImg.w > 0, 'w=' + heroImg.w);
 
     await cdp.send('Page.captureScreenshot', {}).then(async (r) => {
@@ -624,7 +652,10 @@ function check(name, ok, detail) {
 
     // ---------- 删除 ----------
     await cdp.eval(`(() => { const c=[...document.querySelectorAll('#p-list .card')].find(x=>x.textContent.includes('带图片')); c.click(); return 'ok'; })()`);
-    await sleep(700);
+    await sleep(900);
+    // 默认锁定时删除按钮是隐藏的，先解锁
+    await cdp.eval(`document.getElementById('d-lock').click(); 'ok'`);
+    await sleep(400);
     await cdp.eval(`document.getElementById('d-delete').click(); 'ok'`);
     await sleep(500);
     const delDialog = await cdp.eval(`!document.getElementById('dialog').hidden`);
@@ -767,7 +798,7 @@ function check(name, ok, detail) {
     const t4 = await cdp.eval(`document.querySelectorAll('#f-single-list .single-row').length`);
     check('触摸点击「添加单卖项」能增加一行', t4 === 2, '共 ' + t4 + ' 行');
 
-    await tapByTouch('#f-photo-btn');
+    await tapByTouch('#f-photo-grid .photo-slot--add');
     const t5 = await cdp.eval(`!document.getElementById('sheet-form').hidden`);
     check('触摸点击图片选择不报错', t5 === true);
 

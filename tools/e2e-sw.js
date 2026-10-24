@@ -45,12 +45,24 @@ const BASE = process.argv[2] || 'http://127.0.0.1:8899/index.html';
         files: files
       };
     })()`);
+    // 从 sw.js 读取当前版本号，避免硬编码（每次升版都要改测试）
+    let expectedVer = '';
+    for (let i = 0; i < 20 && !expectedVer; i++) {
+      try {
+        const src = await cdp.eval(`fetch('./sw.js', { cache: 'no-store' }).then(r => r.text())`);
+        const m = src.match(/CACHE_VERSION\s*=\s*'([^']+)'/);
+        if (m) expectedVer = m[1];
+      } catch (e) { /* 重试 */ }
+      if (!expectedVer) await sleep(300);
+    }
     check('Service Worker 已注册并激活', sw.registered && sw.active, JSON.stringify({ scope: sw.scope }));
-    check('缓存版本号已更新为 v1.1.0', (sw.shellKey || '').includes('v1.1.0'), sw.shellKey);
+    check('缓存版本号与 sw.js 一致',
+      expectedVer && (sw.shellKey || '').indexOf(expectedVer) === 0,
+      'sw.js=' + expectedVer + ' cache=' + sw.shellKey);
     check('App Shell 已完整预缓存', sw.files.length >= 8, sw.files.join(', '));
 
     // ---------- 2. 关键：缓存里没有旧版本残留 ----------
-    const staleKeys = sw.cacheKeys.filter(k => k.includes('kitty-price-book') && !k.includes('v1.1.0'));
+    const staleKeys = sw.cacheKeys.filter(k => k.includes('kitty-price-book') && (!expectedVer || k.indexOf(expectedVer) !== 0));
     check('没有旧版本缓存残留', staleKeys.length === 0, staleKeys.join(', ') || '干净');
 
     // ---------- 3. 关键：缓存被旧内容污染后，SW 能自动换成新内容 ----------

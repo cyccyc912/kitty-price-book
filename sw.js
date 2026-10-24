@@ -12,7 +12,7 @@
    "改了代码但手机上按钮点不了"的问题）。
    ============================================================ */
 
-var CACHE_VERSION = 'kitty-price-book-v1.1.0';
+var CACHE_VERSION = 'kitty-price-book-v1.2.0';
 var SHELL_CACHE = CACHE_VERSION + '-shell';
 var RUNTIME_CACHE = CACHE_VERSION + '-runtime';
 

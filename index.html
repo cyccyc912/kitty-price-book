@@ -158,6 +158,27 @@
       </div>
 
       <div class="panel">
+        <h2 class="panel__title">报价模板</h2>
+        <p class="hint" style="margin-bottom:10px">点「复制报价」时按这个格式生成，直接发给客人。</p>
+        <div class="tpl-list" id="set-tpl-list"></div>
+        <div class="field" id="set-tpl-custom-wrap" hidden style="margin-top:12px">
+          <label class="field__label" for="set-tpl-custom">自定义模板</label>
+          <textarea class="input textarea" id="set-tpl-custom" rows="6" maxlength="500"
+            placeholder="用 {名称} {货号} {售价} {单卖} {单卖明细} {标签} {备注} 作为占位符"></textarea>
+          <p class="hint">可用占位符：{名称} {货号} {售价} {单卖} {单卖明细} {标签} {备注}</p>
+        </div>
+        <button class="btn btn--soft btn--sm" id="set-tpl-preview" type="button" style="margin-top:10px">预览效果</button>
+      </div>
+
+      <div class="panel">
+        <h2 class="panel__title">查看方式</h2>
+        <label class="switch-row">
+          <span class="switch-row__label">详情页默认锁定<small>打开商品时只能看价格，防止误触编辑/删除</small></span>
+          <input type="checkbox" id="set-lock" class="switch" checked>
+        </label>
+      </div>
+
+      <div class="panel">
         <h2 class="panel__title">提醒</h2>
         <label class="switch-row">
           <span class="switch-row__label">备份提醒<small>超过 7 天没备份时提示我</small></span>
@@ -218,6 +239,19 @@
   <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path d="M12 5.5v13M5.5 12h13" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>
 </button>
 
+<!-- ============ 长按快捷菜单 ============ -->
+<div class="sheet" id="sheet-quick" hidden>
+  <div class="sheet__mask" data-close="quick"></div>
+  <div class="sheet__panel sheet__panel--quick" role="dialog" aria-modal="true" aria-labelledby="quick-title">
+    <header class="sheet__head">
+      <span style="width:44px"></span>
+      <h2 class="sheet__title" id="quick-title">快捷操作</h2>
+      <button class="text-btn text-btn--strong" type="button" data-close="quick">关闭</button>
+    </header>
+    <div class="sheet__body" id="quick-body"></div>
+  </div>
+</div>
+
 <!-- ============ 商品表单（新增 / 编辑） ============ -->
 <div class="sheet" id="sheet-form" hidden>
   <div class="sheet__mask" data-close="form"></div>
@@ -229,27 +263,11 @@
     </header>
 
     <div class="sheet__body">
-      <!-- 图片 -->
+      <!-- 图片（最多 4 张，第 1 张为封面） -->
       <div class="field">
-        <label class="field__label">商品图片</label>
-        <div class="photo">
-          <button class="photo__picker" id="f-photo-btn" type="button" aria-label="选择或拍摄商品图片">
-            <img class="photo__img" id="f-photo-img" alt="" hidden>
-            <span class="photo__ph" id="f-photo-ph">
-              <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
-                <rect x="3" y="6" width="18" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="1.7"/>
-                <circle cx="12" cy="13" r="3.4" fill="none" stroke="currentColor" stroke-width="1.7"/>
-                <path d="M9 6l1.2-2h3.6L15 6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
-              </svg>
-              <span>拍照 / 相册</span>
-            </span>
-            <span class="photo__loading" id="f-photo-loading" hidden><i class="spinner"></i>压缩中…</span>
-          </button>
-          <div class="photo__side">
-            <p class="photo__tip">自动压缩到 800px 以内，省空间</p>
-            <button class="btn btn--tiny btn--ghost" id="f-photo-clear" type="button" hidden>删除图片</button>
-          </div>
-        </div>
+        <label class="field__label">商品图片 <em class="opt">最多 4 张，第 1 张为封面</em></label>
+        <div class="photo-grid" id="f-photo-grid"></div>
+        <p class="photo__tip">自动压缩到 800px 以内，省空间</p>
         <input type="file" id="f-photo-input" accept="image/*" hidden>
       </div>
 
@@ -339,11 +357,17 @@
     <header class="sheet__head">
       <button class="text-btn" type="button" data-close="detail">关闭</button>
       <h2 class="sheet__title" id="detail-title">商品详情</h2>
-      <button class="text-btn text-btn--strong" type="button" id="d-edit">编辑</button>
+      <div class="head-actions">
+        <button class="lock-btn" type="button" id="d-lock" aria-label="锁定或解锁" title="已锁定，点此解锁">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="5" y="10.5" width="14" height="9.5" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M8.2 10.5V8a3.8 3.8 0 0 1 7.6 0v2.5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><circle cx="12" cy="15.2" r="1.3" fill="currentColor"/></svg>
+        </button>
+        <button class="text-btn text-btn--strong" type="button" id="d-edit">编辑</button>
+      </div>
     </header>
     <div class="sheet__body" id="d-body"></div>
     <footer class="sheet__foot">
-      <div class="btn-row btn-row--3">
+      <button class="btn btn--primary btn--block" id="d-copy-quote" type="button">复制报价（发客人）</button>
+      <div class="btn-row btn-row--3" style="margin-top:10px">
         <button class="btn btn--soft btn--sm" id="d-copy-price" type="button">复制售价</button>
         <button class="btn btn--soft btn--sm" id="d-copy-single" type="button">复制单卖价</button>
         <button class="btn btn--soft btn--sm" id="d-copy-all" type="button">复制全部</button>

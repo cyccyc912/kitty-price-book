@@ -851,7 +851,77 @@ h1, h2, h3, p { margin: 0; }
   background: rgba(240, 97, 156, .78);
 }
 .photo__side { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
-.photo__tip { font-size: 11.5px; color: var(--ink-500); line-height: 1.5; }
+.photo__tip { font-size: 11.5px; color: var(--ink-500); line-height: 1.5; margin-top: 6px; }
+
+/* ---------------- 多图：表单网格 ---------------- */
+.photo-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.photo-slot {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.photo-slot--empty {
+  background: var(--pink-50);
+  border: 1.5px dashed var(--pink-200);
+  opacity: .5;
+}
+.photo-slot--filled {
+  background: var(--pink-100);
+  border: 1.5px solid var(--pink-300);
+}
+.photo-slot--filled img { width: 100%; height: 100%; object-fit: cover; }
+.photo-slot--add {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  background: linear-gradient(135deg, #fff8fc, #ffeff7);
+  border: 1.5px dashed var(--pink-300);
+  color: var(--pink-500);
+  font-size: 10.5px;
+  font-weight: 700;
+  transition: transform .14s var(--ease);
+}
+.photo-slot--add:active { transform: scale(.95); }
+.photo-slot__cover {
+  position: absolute;
+  left: 3px; bottom: 3px;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(240, 97, 156, .92);
+  border-radius: 5px;
+  padding: 1px 5px;
+}
+.photo-slot__del {
+  position: absolute;
+  top: 3px; right: 3px;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  display: grid; place-items: center;
+  color: #fff;
+  background: rgba(58, 46, 52, .62);
+}
+.photo-slot__del:active { transform: scale(.9); }
+
+/* 卡片上的多图角标 */
+.card__imgcount {
+  position: absolute;
+  right: 4px; bottom: 4px;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(58, 46, 52, .68);
+  border-radius: 5px;
+  padding: 1px 5px;
+  pointer-events: none;
+}
 
 /* ---------------- 单卖项（表单里的多行） ---------------- */
 .single-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
@@ -997,7 +1067,155 @@ h1, h2, h3, p { margin: 0; }
   min-height: 116px;
 }
 /* 有图时才用大图比例，没图就保持紧凑 */
-.detail-hero--has-image { aspect-ratio: 4 / 3; min-height: 0; }
+.detail-hero--has-image { aspect-ratio: auto; min-height: 0; display: block; padding: 0; position: relative; }
+
+/* ---------------- 详情页轮播 ---------------- */
+.carousel {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  display: flex;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.carousel::-webkit-scrollbar { display: none; }
+.carousel__track { display: flex; width: 100%; }
+.carousel__slide {
+  flex: 0 0 100%;
+  scroll-snap-align: start;
+  /* 手机上不要占太高，把价格露出来；横图靠 contain 居中 */
+  height: clamp(180px, 42vh, 340px);
+  display: grid;
+  place-items: center;
+  background: #fff;
+  cursor: zoom-in;
+}
+.carousel__slide img { width: 100%; height: 100%; object-fit: contain; }
+.carousel__fail { font-size: 12.5px; color: var(--ink-300); }
+
+.carousel__dots {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 5px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(58, 46, 52, .34);
+}
+.carousel__dots i {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .55);
+  transition: all .2s var(--ease);
+}
+.carousel__dots i.is-active { background: #fff; width: 16px; border-radius: 999px; }
+.carousel__count {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  z-index: 2;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(58, 46, 52, .5);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+/* ---------------- 锁定按钮 ---------------- */
+.head-actions { display: flex; align-items: center; gap: 4px; }
+.lock-btn {
+  width: 34px; height: 34px;
+  border-radius: 10px;
+  display: grid; place-items: center;
+  color: var(--pink-500);
+  background: var(--pink-100);
+  transition: all .16s var(--ease);
+}
+.lock-btn:active { transform: scale(.9); }
+.sheet.is-locked .lock-btn { color: var(--bow-600); background: #ffe3ee; }
+
+/* 锁定时隐藏编辑/删除（用 !important 保证优先级） */
+.sheet.is-locked #d-edit { display: none !important; }
+.sheet.is-locked #d-delete { display: none !important; }
+
+/* ---------------- 快捷菜单 ---------------- */
+.sheet__panel--quick { max-height: 80vh; }
+.quick-list {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.quick-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink-900);
+  text-align: left;
+  border-bottom: 1px solid var(--line-2);
+  transition: background .14s var(--ease);
+}
+.quick-item:last-child { border-bottom: none; }
+.quick-item:active { background: var(--pink-50); }
+.quick-item:disabled { opacity: .38; pointer-events: none; }
+.quick-item__icon { flex: 0 0 auto; color: var(--pink-500); display: flex; }
+.quick-item--primary { color: var(--bow-600); font-weight: 800; }
+.quick-item--primary .quick-item__icon { color: var(--bow-600); }
+.quick-item--danger { color: #d64545; }
+.quick-item--danger .quick-item__icon { color: #d64545; }
+
+/* ---------------- 报价模板 ---------------- */
+.tpl-list { display: flex; flex-direction: column; gap: 8px; }
+.tpl-card {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 12px 14px;
+  border-radius: 13px;
+  background: #fff;
+  border: 1.5px solid var(--line);
+  text-align: left;
+  transition: all .16s var(--ease);
+}
+.tpl-card:active { transform: scale(.99); }
+.tpl-card.is-active {
+  border-color: transparent;
+  background: linear-gradient(135deg, #fff0f7, #ffe0ee);
+  box-shadow: 0 0 0 2px var(--pink-400) inset;
+}
+.tpl-card__name { font-size: 13.5px; font-weight: 800; color: var(--ink-900); }
+.tpl-card.is-active .tpl-card__name { color: var(--bow-600); }
+.tpl-card__desc { font-size: 11px; color: var(--ink-500); }
+.tpl-card__preview {
+  margin-top: 5px;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--ink-700);
+  background: var(--line-2);
+  border-radius: 8px;
+  padding: 7px 9px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.preview-box {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--ink-900);
+  background: var(--line-2);
+  border-radius: 10px;
+  padding: 12px;
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
 .detail-hero img { width: 100%; height: 100%; object-fit: contain; background: #fff; }
 .detail-name { font-size: 20px; font-weight: 800; line-height: 1.3; word-break: break-word; }
 .detail-sub { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; }

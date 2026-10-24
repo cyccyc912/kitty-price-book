@@ -295,8 +295,8 @@ const BASE = process.argv[2] || 'http://127.0.0.1:8899/index.html';
       input.files=dt.files;
       input.dispatchEvent(new Event('change',{bubbles:true}));
       await new Promise(r=>setTimeout(r,2500));
-      const img=document.getElementById('f-photo-img');
-      return { srcBytes: blob.size, w: img.naturalWidth, h: img.naturalHeight };
+      const img=document.querySelector('#f-photo-grid .photo-slot--filled img');
+      return { srcBytes: blob.size, w: img ? img.naturalWidth : 0, h: img ? img.naturalHeight : 0 };
     })()`);
     check('3000×3000 大图压到 800px 以内',
       bigImg.w <= 800 && bigImg.h <= 800 && bigImg.w > 0,
@@ -327,13 +327,16 @@ const BASE = process.argv[2] || 'http://127.0.0.1:8899/index.html';
 
     // ---------- 图片删除 ----------
     await cdp.eval(`(() => { const c=document.querySelector('#p-list .card'); c.click(); return 'ok'; })()`);
-    await sleep(700);
+    await sleep(900);
+    // 详情页默认锁定，先解锁才能编辑
+    await cdp.eval(`document.getElementById('d-lock').click(); 'ok'`);
+    await sleep(400);
     await cdp.eval(`document.getElementById('d-edit').click(); 'ok'`);
-    await sleep(800);
-    await cdp.eval(`document.getElementById('f-photo-clear').click(); 'ok'`);
-    await sleep(300);
+    await sleep(1000);
+    await cdp.eval(`(() => { const b=document.querySelector('#f-photo-grid [data-photo-del]'); if(b) b.click(); return 'ok'; })()`);
+    await sleep(400);
     await cdp.eval(`document.getElementById('f-save').click(); 'ok'`);
-    await sleep(1500);
+    await sleep(1800);
     const imgCleared = await cdp.eval(`(async () => ({
       images: (await window.DB.allImages()).length,
       cardHasImg: !!document.querySelector('#p-list .card .card__thumb img')
@@ -535,8 +538,10 @@ const BASE = process.argv[2] || 'http://127.0.0.1:8899/index.html';
     });
 
     // 6) 删除单卖项
+    await cdp.eval(`document.getElementById('d-lock').click(); 'ok'`);
+    await sleep(400);
     await cdp.eval(`document.getElementById('d-edit').click(); 'ok'`);
-    await sleep(800);
+    await sleep(900);
     const beforeDel = await cdp.eval(`document.querySelectorAll('#f-single-list .single-row').length`);
     await cdp.eval(`(() => {
       const btns = document.querySelectorAll('#f-single-list [data-single-del]');
