@@ -2798,6 +2798,8 @@
     bindEvents();
     updateOnline();
     switchView('products');
+    // 标记启动成功，供 index.html 里的兜底检测判断
+    window.__KITTY_BOOTED__ = true;
 
     // 从 manifest shortcuts 进来时直接定位
     var params = new URLSearchParams(location.search);

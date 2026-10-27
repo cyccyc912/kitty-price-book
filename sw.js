@@ -12,7 +12,7 @@
    "改了代码但手机上按钮点不了"的问题）。
    ============================================================ */
 
-var CACHE_VERSION = 'kitty-price-book-v1.3.1';
+var CACHE_VERSION = 'kitty-price-book-v1.3.2';
 var SHELL_CACHE = CACHE_VERSION + '-shell';
 var RUNTIME_CACHE = CACHE_VERSION + '-runtime';
 
@@ -103,7 +103,31 @@ self.addEventListener('fetch', function (event) {
     return;
   }
 
-  // 其它同源静态资源：先用缓存（秒开），同时后台更新缓存
+  // 代码类资源（js / css）：网络优先，失败才回落缓存。
+  // 这类文件一旦缓存里是坏的或旧版，整个 App 的交互都会失效
+  // （曾经因为缓存里是残缺的 app.js，导致"所有按钮都点不了"）。
+  var isCode = /\.(?:js|css)($|\?)/.test(url.pathname);
+
+  if (isCode) {
+    event.respondWith(
+      fetch(req)
+        .then(function (res) {
+          if (res && res.status === 200 && res.type === 'basic') {
+            var copy = res.clone();
+            caches.open(RUNTIME_CACHE).then(function (cache) { cache.put(req, copy); });
+          }
+          return res;
+        })
+        .catch(function () {
+          return caches.match(req).then(function (cached) {
+            return cached || Response.error();
+          });
+        })
+    );
+    return;
+  }
+
+  // 其它同源静态资源（图片等）：先用缓存（秒开），同时后台更新缓存
   event.respondWith(
     caches.match(req).then(function (cached) {
       var network = fetch(req).then(function (res) {

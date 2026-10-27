@@ -115,7 +115,14 @@ const BASE = process.argv[2] || 'http://127.0.0.1:8899/index.html';
       offline: true, latency: 0, downloadThroughput: 0, uploadThroughput: 0
     });
     await cdp.send('Page.navigate', { url: BASE });
-    await sleep(4500);
+    // 离线时从 SW 缓存读取也需要时间，轮询等待应用就绪
+    for (let i = 0; i < 50; i++) {
+      await sleep(400);
+      try {
+        if (await cdp.eval(`!!(window.DB && document.getElementById('fab') && document.readyState === 'complete')`)) break;
+      } catch (e) { /* 导航中 */ }
+    }
+    await sleep(900);
 
     const offline = await cdp.eval(`(() => ({
       title: document.title,
@@ -144,19 +151,68 @@ const BASE = process.argv[2] || 'http://127.0.0.1:8899/index.html';
     // 注意：这个按钮会触发 location.reload()，所以必须放在最后测，
     // 且点击后不要再去访问旧页面的元素（会拿到 rect 0x0）。
     await cdp.send('Page.navigate', { url: BASE });
-    await sleep(4000);
+    // 等应用就绪（线上要下载 100KB+ app.js 和 408KB kitty-b64.css）
+    for (let i = 0; i < 60; i++) {
+      await sleep(400);
+      try {
+        if (await cdp.eval(`!!(window.DB && document.getElementById('fab') && document.readyState === 'complete')`)) break;
+      } catch (e) { /* 导航中 */ }
+    }
+    await sleep(800);
+
     await cdp.eval(`document.querySelector('.tab[data-view="settings"]').click(); 'ok'`);
-    await sleep(900);
+    // 等设置页真的渲染出「其它」面板
+    let settingsReady = false;
+    for (let i = 0; i < 40; i++) {
+      await sleep(250);
+      const st = await cdp.eval(`(() => {
+        const view = document.getElementById('view-settings');
+        const b = document.getElementById('set-update');
+        return {
+          active: !!(view && view.classList.contains('is-active')),
+          w: b ? Math.round(b.getBoundingClientRect().width) : -1,
+          tabs: document.querySelectorAll('.tab').length
+        };
+      })()`);
+      if (st.active && st.w > 0) { settingsReady = true; break; }
+      // 没切过去就再点一次
+      if (!st.active) {
+        await cdp.eval(`(() => { const t = document.querySelector('.tab[data-view="settings"]'); if (t) t.click(); return 'ok'; })()`);
+      }
+    }
+    check('设置页能正常打开', settingsReady === true);
+    if (!settingsReady) {
+      const diag = await cdp.eval(`(() => ({
+        url: location.href,
+        readyState: document.readyState,
+        hasDB: !!window.DB,
+        hasFab: !!document.getElementById('fab'),
+        activeView: (document.querySelector('.view.is-active') || {}).id,
+        tabs: document.querySelectorAll('.tab').length,
+        bodyStyle: document.body.getAttribute('style'),
+        dialogHidden: document.getElementById('dialog') ? document.getElementById('dialog').hidden : null,
+        sheetFormHidden: document.getElementById('sheet-form') ? document.getElementById('sheet-form').hidden : null
+      }))()`).catch((e) => ({ err: String(e) }));
+      console.log('   [诊断] 设置页打不开时的现场:', JSON.stringify(diag));
+    }
+    await sleep(300);
+
+    // 先滚动，再单独取坐标（同一帧内 scrollIntoView 还没生效）
+    await cdp.eval(`(() => {
+      const b = document.getElementById('set-update');
+      if (b) b.scrollIntoView({ block: 'center', behavior: 'instant' });
+      return 'ok';
+    })()`);
+    await sleep(500);
 
     const updateBtn = await cdp.eval(`(() => {
       const b = document.getElementById('set-update');
       if (!b) return { exists: false };
-      b.scrollIntoView({ block: 'center' });
       const r = b.getBoundingClientRect();
       return {
         exists: true,
         inViewport: r.top >= 0 && r.bottom <= window.innerHeight,
-        w: Math.round(r.width), h: Math.round(r.height)
+        w: Math.round(r.width), h: Math.round(r.height), top: Math.round(r.top)
       };
     })()`);
     check('设置页有「检查更新」按钮且可见',
