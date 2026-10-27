@@ -714,7 +714,8 @@
       metaHtml += '<span class="tag-mini">#' + escapeHtml(t) + '</span>';
     });
 
-    var thumbInner = '<span class="card__thumb-ph">' + THUMB_PH_SVG + '</span>';
+    // 无图占位：优先显示 Hello Kitty 小图标（CSS 背景），没素材时回退到 SVG
+    var thumbInner = '<span class="card__thumb-ph card__thumb-ph--kitty">' + THUMB_PH_SVG + '</span>';
     var count = imageCountOf(p);
     var badgeHtml = count > 1
       ? '<span class="card__imgcount">' + count + ' 张</span>'
@@ -785,7 +786,7 @@
   }
 
   var EMPTY_PRODUCTS_HTML =
-    '<div class="state__art">' + EMPTY_KITTY_SVG + '</div>' +
+    '<div class="state__art state__art--kitty">' + EMPTY_KITTY_SVG + '</div>' +
     '<p class="state__title">还没有商品哦</p>' +
     '<p class="state__desc">点右下角的 + 添加第一件衣服<br>记好售价和单卖价，以后随手就能查</p>' +
     '<div class="state__actions">' +
@@ -794,7 +795,7 @@
     '</div>';
 
   var NO_RESULT_HTML =
-    '<div class="state__art">' + EMPTY_KITTY_SVG + '</div>' +
+    '<div class="state__art state__art--kitty">' + EMPTY_KITTY_SVG + '</div>' +
     '<p class="state__title">没找到匹配的商品</p>' +
     '<p class="state__desc">换个关键词，或者把筛选条件放宽一点试试</p>' +
     '<div class="state__actions"><button class="btn btn--ghost btn--sm" data-action="reset">重置筛选</button></div>';
@@ -837,7 +838,7 @@
     var empty;
     if (noQuery) {
       empty = {
-        html: '<div class="state__art">' + EMPTY_KITTY_SVG + '</div>' +
+        html: '<div class="state__art state__art--kitty">' + EMPTY_KITTY_SVG + '</div>' +
               '<p class="state__title">想找哪件衣服？</p>' +
               '<p class="state__desc">输入商品名、货号或标签<br>也可以点下面的标签快速筛选</p>'
       };
@@ -2771,7 +2772,7 @@
     state.fatal = err;
     var msg = (err && err.message) || '未知错误';
     var html =
-      '<div class="state__art">' + EMPTY_KITTY_SVG + '</div>' +
+      '<div class="state__art state__art--kitty">' + EMPTY_KITTY_SVG + '</div>' +
       '<p class="state__title">数据打不开了</p>' +
       '<p class="state__desc">' + escapeHtml(msg) + '<br><br>可能是浏览器禁用了本地存储。<br>试试用 Safari 打开，或者关掉「无痕浏览」再进。</p>' +
       '<div class="state__actions"><button class="btn btn--primary btn--sm" data-action="reload">重新加载</button></div>';

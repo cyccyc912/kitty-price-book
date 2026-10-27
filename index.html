@@ -4,11 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>喵喵价格本 · 服装代理报价查询</title>
-<meta name="description" content="服装代理商品价格查询：售价、单卖价、可单卖状态、尺码、标签，离线可用，数据只存在手机本地。">
+<meta name="description" content="服装代理商品价格查询：售价、单卖明细、可单卖状态、标签，离线可用，数据只存在手机本地。">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="googlebot" content="noindex, nofollow">
 
 <!-- PWA / iOS -->
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#ff8fbe">
+<meta name="theme-color" content="#FFF1F5">
 <meta name="color-scheme" content="light">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -19,6 +21,7 @@
 <link rel="icon" href="icons/favicon.png" sizes="32x32">
 <link rel="icon" href="icons/icon-192.png" sizes="192x192">
 
+<link rel="stylesheet" href="icons/kitty-b64.css">
 <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
@@ -26,18 +29,7 @@
 <!-- ============ 顶部标题栏 ============ -->
 <header class="appbar" id="appbar">
   <div class="appbar__inner">
-    <span class="appbar__kitty" aria-hidden="true">
-      <svg viewBox="0 0 48 40" width="34" height="28">
-        <path d="M8 16 L6 4 L18 11 Z" fill="#fff" stroke="#f090b8" stroke-width="1.6" stroke-linejoin="round"/>
-        <path d="M40 16 L42 4 L30 11 Z" fill="#fff" stroke="#f090b8" stroke-width="1.6" stroke-linejoin="round"/>
-        <ellipse cx="24" cy="22" rx="18" ry="15" fill="#fff" stroke="#f090b8" stroke-width="1.6"/>
-        <ellipse cx="17" cy="21" rx="2.1" ry="2.7" fill="#3a2e34"/>
-        <ellipse cx="31" cy="21" rx="2.1" ry="2.7" fill="#3a2e34"/>
-        <ellipse cx="24" cy="26" rx="2.2" ry="1.7" fill="#ffbe3c"/>
-        <path d="M36 10 l3.4-3.6 3.4 3.6-3.4 3.6z" fill="#ff5c8a"/>
-        <circle cx="36" cy="10" r="1.5" fill="#e23e6e"/>
-      </svg>
-    </span>
+    <span class="appbar__kitty" aria-hidden="true"></span>
     <div class="appbar__text">
       <h1 class="appbar__title">喵喵价格本</h1>
       <p class="appbar__sub" id="appbar-sub">价格随手查 · 离线可用</p>

@@ -21,3 +21,8 @@ desktop.ini
 # 编辑器
 .vscode/
 .idea/
+
+# Hello Kitty 原始素材与中间产物（只保留生成好的图标和 kitty-b64.css）
+icons/kitty-head.jpg
+icons/kitty-full.webp
+icons/_kitty-*.png

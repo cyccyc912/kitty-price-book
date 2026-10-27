@@ -6,13 +6,20 @@
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
-  "display_override": ["standalone", "minimal-ui"],
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
   "orientation": "portrait",
-  "background_color": "#fff7fb",
-  "theme_color": "#ff8fbe",
+  "background_color": "#FCFAF9",
+  "theme_color": "#FFF1F5",
   "lang": "zh-CN",
   "dir": "ltr",
-  "categories": ["shopping", "productivity", "utilities"],
+  "categories": [
+    "shopping",
+    "productivity",
+    "utilities"
+  ],
   "prefer_related_applications": false,
   "icons": [
     {
@@ -40,14 +47,26 @@
       "short_name": "新增",
       "description": "直接打开新增商品表单",
       "url": "./index.html?action=add",
-      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
     },
     {
       "name": "搜索价格",
       "short_name": "搜索",
       "description": "直接打开搜索页",
       "url": "./index.html?view=search",
-      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
     }
   ]
 }

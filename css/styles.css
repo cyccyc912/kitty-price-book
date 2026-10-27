@@ -1,54 +1,76 @@
 /* ============================================================
-   喵喵价格本 · 样式表
+   喵喵价格本 · 样式表 v2
    移动端优先，iPhone Safari 适配（含安全区、100dvh、底部弹层）
-   配色：柔和樱花粉 + 奶油白 + 一点点蝴蝶结红
+
+   配色思路（v2 重设计）：
+   - 底色改成奶油白，让界面「安静」下来
+   - 粉色不再铺满背景，只用于点缀和强调
+   - 价格用玫红高亮，成为视觉焦点
+   - Hello Kitty 形象从 icons/kitty-b64.css 里的变量读取
    ============================================================ */
 
 /* ---------------- 变量 ---------------- */
 :root {
-  --pink-50:  #fff7fb;
-  --pink-100: #ffeef6;
-  --pink-200: #ffdcec;
-  --pink-300: #ffc2dd;
-  --pink-400: #ff9ec8;
-  --pink-500: #ff7fb5;
-  --pink-600: #f0619c;
-  --bow-500:  #ff5c8a;
-  --bow-600:  #e23e6e;
-  --blue-400: #9cc7f0;
-  --blue-600: #5b8fd0;
-  --mint-400: #9fdcc8;
-  --mint-600: #3f9c7e;
-  --amber-400:#ffc861;
-  --amber-600:#c9871a;
+  /* 粉色系：只作点缀 */
+  --pink-50:  #fff8fb;
+  --pink-100: #fff1f5;
+  --pink-200: #ffe4ee;
+  --pink-300: #ffc9dc;
+  --pink-400: #ffa5c6;
+  --pink-500: #ff7fb0;
+  --pink-600: #f25c96;
 
-  --ink-900: #3a2e34;
-  --ink-700: #5d4e56;
-  --ink-500: #8b7a83;
-  --ink-300: #b9a8b1;
-  --line:    #f4e2ec;
-  --line-2:  #f9edf4;
+  /* Hello Kitty 红蝴蝶结 */
+  --bow-500:  #ef3b52;
+  --bow-600:  #d92b42;
+
+  /* 强调色：价格专用 */
+  --price:    #e8356b;
+  --price-soft: #fff0f4;
+
+  /* 辅助色 */
+  --blue-400: #a6c8ec;
+  --blue-600: #5b87c2;
+  --mint-400: #a8ddca;
+  --mint-600: #3f9a7c;
+  --amber-400:#ffd08a;
+  --amber-600:#c08017;
+  --violet-500: #8f7ad6;
+  --violet-50:  #f4f0ff;
+
+  /* 中性色（奶油调） */
+  --ink-900: #2e2629;
+  --ink-700: #574c51;
+  --ink-500: #8a7f85;
+  --ink-300: #bcb2b7;
+  --line:    #f0eaec;
+  --line-2:  #f7f3f5;
 
   --card:    #ffffff;
-  --bg:      #fff7fb;
+  --bg:      #fcfaf9;
 
   --radius-sm: 10px;
   --radius:    16px;
   --radius-lg: 22px;
   --radius-xl: 28px;
 
-  --shadow-sm: 0 2px 8px rgba(224, 140, 180, .10);
-  --shadow:    0 6px 18px rgba(224, 140, 180, .14);
-  --shadow-lg: 0 -8px 34px rgba(190, 110, 150, .18);
+  /* 阴影更淡更自然，靠白色卡片自己撑起来 */
+  --shadow-sm: 0 1px 2px rgba(52, 32, 42, .04), 0 2px 8px rgba(52, 32, 42, .045);
+  --shadow:    0 2px 6px rgba(52, 32, 42, .05), 0 8px 22px rgba(52, 32, 42, .07);
+  --shadow-lg: 0 -8px 34px rgba(70, 45, 58, .14);
 
-  --appbar-h: 58px;
-  --tabbar-h: 60px;
+  --appbar-h: 60px;
+  --tabbar-h: 62px;
   --safe-t: env(safe-area-inset-top, 0px);
   --safe-b: env(safe-area-inset-bottom, 0px);
   --safe-l: env(safe-area-inset-left, 0px);
   --safe-r: env(safe-area-inset-right, 0px);
 
   --ease: cubic-bezier(.32, .72, .3, 1);
+
+  /* Hello Kitty 素材由 icons/kitty-b64.css 在 :root 中定义。
+     这里不要重复声明 --kitty-*，否则会覆盖掉前面的定义。
+     若素材未加载，下面用到的地方会自动回退成纯色/空背景。 */
 }
 
 /* ---------------- 基础重置 ---------------- */
@@ -101,33 +123,58 @@ h1, h2, h3, p { margin: 0; }
   inset: 0 0 auto 0;
   z-index: 60;
   padding-top: var(--safe-t);
-  background: linear-gradient(180deg, #ffe6f2 0%, #ffd9ec 100%);
-  border-bottom: 1px solid rgba(255, 255, 255, .7);
-  box-shadow: 0 2px 12px rgba(226, 140, 180, .16);
+  background: rgba(255, 255, 255, .92);
+  -webkit-backdrop-filter: saturate(180%) blur(14px);
+  backdrop-filter: saturate(180%) blur(14px);
+  border-bottom: 1px solid var(--pink-200);
 }
 .appbar__inner {
   height: var(--appbar-h);
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 0 14px;
-  padding-left: max(14px, var(--safe-l));
-  padding-right: max(14px, var(--safe-r));
+  gap: 11px;
+  padding: 0 16px;
+  padding-left: max(16px, var(--safe-l));
+  padding-right: max(16px, var(--safe-r));
 }
-.appbar__kitty { flex: 0 0 auto; display: flex; align-items: center; }
+
+/* Hello Kitty 头像：圆形白底 + 粉边 + 轻阴影 */
+.appbar__kitty {
+  flex: 0 0 auto;
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  background-color: #fff;
+  background-image: var(--kitty-small);
+  background-size: 116%;
+  background-position: center 54%;
+  background-repeat: no-repeat;
+  border: 1.5px solid var(--pink-200);
+  box-shadow: 0 1px 4px rgba(232, 53, 107, .10);
+}
+
 .appbar__text { flex: 1 1 auto; min-width: 0; }
 .appbar__title {
   font-size: 17px;
-  font-weight: 700;
-  letter-spacing: .3px;
-  color: #a8406e;
+  font-weight: 800;
+  letter-spacing: .2px;
+  color: var(--ink-900);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* 标题尾部的小红点，呼应蝴蝶结 */
+.appbar__title::after {
+  content: "";
+  display: inline-block;
+  width: 5px; height: 5px;
+  margin-left: 5px;
+  border-radius: 50%;
+  background: var(--bow-500);
+  vertical-align: 5px;
+}
 .appbar__sub {
   font-size: 11px;
-  color: #c07a9c;
+  color: var(--ink-500);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -137,20 +184,20 @@ h1, h2, h3, p { margin: 0; }
   width: 38px; height: 38px;
   border-radius: 50%;
   display: grid; place-items: center;
-  background: #fff;
+  background: var(--pink-100);
   color: var(--bow-600);
-  box-shadow: 0 2px 8px rgba(226, 100, 150, .22);
-  transition: transform .15s var(--ease);
+  border: 1px solid var(--pink-200);
+  transition: transform .15s var(--ease), background .15s var(--ease);
 }
-.appbar__add:active { transform: scale(.9); }
+.appbar__add:active { transform: scale(.9); background: var(--pink-200); }
 
 .offline-banner {
   padding: 5px 14px;
   font-size: 11.5px;
   text-align: center;
   color: #8a5a2b;
-  background: linear-gradient(90deg, #ffe9c2, #fff3dd);
-  border-top: 1px solid #ffe0b0;
+  background: linear-gradient(90deg, #fff3dd, #fff9ee);
+  border-top: 1px solid #ffe8c7;
 }
 
 /* ---------------- 页面容器 ---------------- */
@@ -173,26 +220,33 @@ h1, h2, h3, p { margin: 0; }
 .stat-card {
   display: flex;
   align-items: center;
-  background: linear-gradient(135deg, #ffffff 0%, #fff4f9 100%);
+  background: #fff;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   box-shadow: var(--shadow-sm);
-  padding: 12px 8px;
-  margin-bottom: 12px;
+  padding: 13px 6px;
+  margin-bottom: 14px;
 }
 .stat-card__item { flex: 1; text-align: center; }
-.stat-card__num { display: block; font-size: 21px; font-weight: 800; color: var(--ink-900); line-height: 1.15; }
-.stat-card__num--pink { color: var(--bow-600); }
-.stat-card__num--blue { color: var(--blue-600); }
-.stat-card__label { font-size: 11px; color: var(--ink-500); }
-.stat-card__divider { width: 1px; height: 26px; background: var(--line); }
+.stat-card__num {
+  display: block;
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--ink-900);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.stat-card__num--pink { color: var(--price); }
+.stat-card__num--blue { color: var(--amber-600); }
+.stat-card__label { font-size: 10.5px; color: var(--ink-500); margin-top: 2px; display: block; }
+.stat-card__divider { width: 1px; height: 28px; background: var(--line); }
 
 /* ---------------- 横向滚动 chip 行 ---------------- */
 .chip-row {
   display: flex;
   gap: 8px;
   overflow-x: auto;
-  padding: 2px 0 8px;
+  padding: 2px 0 10px;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }
@@ -201,7 +255,7 @@ h1, h2, h3, p { margin: 0; }
 
 .chip {
   flex: 0 0 auto;
-  padding: 7px 14px;
+  padding: 7px 15px;
   border-radius: 999px;
   font-size: 13px;
   font-weight: 600;
@@ -214,11 +268,11 @@ h1, h2, h3, p { margin: 0; }
 .chip:active { transform: scale(.95); }
 .chip.is-active {
   color: #fff;
-  background: linear-gradient(135deg, var(--pink-400), var(--pink-600));
-  border-color: transparent;
-  box-shadow: 0 3px 10px rgba(240, 97, 156, .32);
+  background: var(--bow-500);
+  border-color: var(--bow-500);
+  box-shadow: 0 2px 8px rgba(239, 59, 82, .28);
 }
-.chip--tag.is-active { background: linear-gradient(135deg, #b9a0f0, #8f6ee0); box-shadow: 0 3px 10px rgba(143, 110, 224, .3); }
+.chip--tag.is-active { background: var(--violet-500); border-color: var(--violet-500); box-shadow: 0 2px 8px rgba(143, 122, 214, .3); }
 
 /* ---------------- 排序行 ---------------- */
 .sort-row {
@@ -292,12 +346,12 @@ h1, h2, h3, p { margin: 0; }
 
 /* ---------------- 商品列表 ---------------- */
 .list {
-  padding: 4px 14px 0;
-  padding-left: max(14px, var(--safe-l));
-  padding-right: max(14px, var(--safe-r));
+  padding: 4px 16px 0;
+  padding-left: max(16px, var(--safe-l));
+  padding-right: max(16px, var(--safe-r));
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 11px;
 }
 
 .card {
@@ -305,9 +359,9 @@ h1, h2, h3, p { margin: 0; }
   gap: 12px;
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: var(--radius);
+  border-radius: 18px;
   box-shadow: var(--shadow-sm);
-  padding: 10px;
+  padding: 11px;
   transition: transform .16s var(--ease), box-shadow .16s var(--ease);
 }
 .card:active { transform: scale(.985); box-shadow: var(--shadow); }
@@ -315,18 +369,29 @@ h1, h2, h3, p { margin: 0; }
 .card__thumb {
   position: relative;
   flex: 0 0 auto;
-  width: 84px;
-  height: 84px;
-  border-radius: 12px;
+  width: 92px;
+  height: 92px;
+  border-radius: 14px;
   overflow: hidden;
-  background: linear-gradient(135deg, var(--pink-100), var(--pink-200));
+  background: var(--pink-100);
   display: grid;
   place-items: center;
 }
 .card__thumb img { width: 100%; height: 100%; object-fit: cover; }
-.card__thumb-ph { color: var(--pink-400); }
 
-.card__main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+/* 无图占位：有 Hello Kitty 素材就用它，否则显示内联 SVG */
+.card__thumb-ph--kitty {
+  width: 100%;
+  height: 100%;
+  background-image: var(--kitty-empty);
+  background-size: 74%;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+.card__thumb-ph--kitty svg { display: none; }
+.card__thumb-ph { color: var(--pink-300); }
+
+.card__main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 .card__top { display: flex; align-items: flex-start; gap: 8px; }
 .card__name {
   flex: 1 1 auto;
@@ -334,7 +399,7 @@ h1, h2, h3, p { margin: 0; }
   font-size: 15px;
   font-weight: 700;
   color: var(--ink-900);
-  line-height: 1.32;
+  line-height: 1.34;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -347,48 +412,83 @@ h1, h2, h3, p { margin: 0; }
   color: var(--ink-500);
   background: var(--line-2);
   border-radius: 6px;
-  padding: 2px 6px;
+  padding: 2px 7px;
   max-width: 84px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+/* 状态徽章：浅底 + 同色文字，比实心更克制 */
 .badge {
   display: inline-flex;
   align-items: center;
   gap: 3px;
   font-size: 11px;
   font-weight: 700;
-  padding: 2.5px 8px;
+  padding: 2.5px 9px;
   border-radius: 999px;
   white-space: nowrap;
+  line-height: 1.4;
 }
-.badge--single { color: #fff; background: linear-gradient(135deg, var(--pink-400), var(--bow-500)); }
-.badge--no     { color: #8c6b78; background: #f0e6ea; }
-.badge--set    { color: #6b5b8c; background: #ece6f7; }
-.badge--ask    { color: #8a5a2b; background: #ffeecf; }
+.badge--single { color: var(--bow-600); background: var(--pink-200); }
+.badge--no     { color: #7e7076; background: #f2edef; }
+.badge--set    { color: var(--violet-500); background: var(--violet-50); }
+.badge--ask    { color: var(--amber-600); background: #fff5e6; }
 
-.card__prices { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
-.price-main { font-size: 17px; font-weight: 800; color: var(--bow-600); line-height: 1.2; }
-.price-main small { font-size: 11px; font-weight: 600; color: var(--ink-500); margin-right: 2px; }
-.price-main .yen { font-size: 12px; margin-right: 1px; }
-.price-single {
-  font-size: 12.5px;
-  font-weight: 700;
-  color: #fff;
-  background: linear-gradient(135deg, #9fdcc8, #3f9c7e);
-  border-radius: 8px;
-  padding: 2px 8px;
+/* ---- 价格区：整块浅粉底，一眼看到 ---- */
+.card__prices {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  background: var(--price-soft);
+  border-radius: 11px;
+  padding: 7px 10px;
+  margin-top: 1px;
 }
-.price-single--none { color: var(--ink-500); background: var(--line-2); font-weight: 600; }
-.price-empty { font-size: 13px; color: var(--ink-300); font-weight: 600; }
+.price-main {
+  font-size: 19px;
+  font-weight: 800;
+  color: var(--price);
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.2px;
+}
+.price-main small {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--ink-500);
+  margin-right: 3px;
+  letter-spacing: 0;
+}
+.price-main .yen { font-size: 12.5px; margin-right: 1px; font-weight: 700; }
+
+.price-single {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--mint-600);
+  background: #e6f6f0;
+  border-radius: 7px;
+  padding: 2.5px 8px;
+  line-height: 1.4;
+}
+.price-single--none {
+  color: var(--ink-500);
+  background: #f2edef;
+  font-weight: 600;
+}
+.price-empty {
+  font-size: 13.5px;
+  color: var(--ink-300);
+  font-weight: 700;
+}
 
 .card__meta { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
 .tag-mini {
   font-size: 10.5px;
-  color: #7a5bb8;
-  background: #f3eeff;
+  color: var(--violet-500);
+  background: var(--violet-50);
   border-radius: 6px;
   padding: 2px 7px;
   max-width: 100px;
@@ -406,21 +506,37 @@ h1, h2, h3, p { margin: 0; }
 
 /* ---------------- 空 / 加载 / 错误状态 ---------------- */
 .state {
-  padding: 46px 26px 60px;
+  padding: 40px 26px 60px;
   text-align: center;
   color: var(--ink-500);
 }
-.state__art { display: flex; justify-content: center; margin-bottom: 14px; opacity: .95; }
-.state__title { font-size: 15px; font-weight: 700; color: var(--ink-700); margin-bottom: 6px; }
-.state__desc { font-size: 13px; line-height: 1.65; color: var(--ink-500); }
-.state__actions { margin-top: 16px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+.state__art {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 18px;
+}
+/* Hello Kitty 空状态插画（base64 背景图，无图时自动隐藏） */
+.state__art--kitty {
+  width: 168px;
+  height: 168px;
+  margin: 0 auto 20px;
+  background-image: var(--kitty-empty);
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+/* 占位 SVG 在没有 Hello Kitty 素材时仍可显示 */
+.state__art--kitty svg { display: none; }
+.state__title { font-size: 16px; font-weight: 800; color: var(--ink-900); margin-bottom: 7px; }
+.state__desc { font-size: 13px; line-height: 1.7; color: var(--ink-500); }
+.state__actions { margin-top: 20px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
 .state--error .state__title { color: #c0392b; }
 
-.skeleton-list { padding: 4px 14px 0; display: flex; flex-direction: column; gap: 12px; }
+.skeleton-list { padding: 4px 16px 0; display: flex; flex-direction: column; gap: 11px; }
 .skeleton {
-  height: 104px;
-  border-radius: var(--radius);
-  background: linear-gradient(100deg, #fdeef6 30%, #fff6fa 50%, #fdeef6 70%);
+  height: 110px;
+  border-radius: 18px;
+  background: linear-gradient(100deg, #f7f2f4 30%, #fdfafb 50%, #f7f2f4 70%);
   background-size: 220% 100%;
   animation: shimmer 1.15s linear infinite;
 }
@@ -435,7 +551,7 @@ h1, h2, h3, p { margin: 0; }
   animation: spin .7s linear infinite;
   vertical-align: -2px;
 }
-.spinner--dark { border-color: var(--line); border-top-color: var(--pink-500); }
+.spinner--dark { border-color: var(--line); border-top-color: var(--bow-500); }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ---------------- 悬浮按钮 ---------------- */
@@ -448,8 +564,8 @@ h1, h2, h3, p { margin: 0; }
   border-radius: 50%;
   display: grid; place-items: center;
   color: #fff;
-  background: linear-gradient(135deg, var(--pink-400) 0%, var(--bow-500) 100%);
-  box-shadow: 0 8px 22px rgba(240, 97, 156, .42);
+  background: var(--bow-500);
+  box-shadow: 0 6px 20px rgba(239, 59, 82, .38);
   transition: transform .16s var(--ease), opacity .2s var(--ease);
 }
 .fab:active { transform: scale(.9); }
@@ -482,7 +598,7 @@ h1, h2, h3, p { margin: 0; }
   transition: color .16s var(--ease);
 }
 .tab svg { transition: transform .2s var(--ease); }
-.tab.is-active { color: var(--bow-600); }
+.tab.is-active { color: var(--bow-500); }
 .tab.is-active svg { transform: translateY(-1px) scale(1.06); }
 .tab__dot {
   position: absolute;
@@ -497,25 +613,34 @@ h1, h2, h3, p { margin: 0; }
 
 /* ---------------- 设置页 ---------------- */
 .settings {
-  padding: 14px;
-  padding-left: max(14px, var(--safe-l));
-  padding-right: max(14px, var(--safe-r));
+  padding: 16px;
+  padding-left: max(16px, var(--safe-l));
+  padding-right: max(16px, var(--safe-r));
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 13px;
 }
 .panel {
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: var(--radius);
+  border-radius: 18px;
   box-shadow: var(--shadow-sm);
-  padding: 14px;
+  padding: 16px;
 }
 .panel__title {
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 800;
-  color: #a8406e;
-  margin-bottom: 10px;
+  color: var(--ink-900);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.panel__title::before {
+  content: "";
+  width: 3px; height: 13px;
+  border-radius: 2px;
+  background: var(--bow-500);
 }
 .panel--about .about__line { font-size: 12.5px; color: var(--ink-700); margin-bottom: 3px; }
 
@@ -1057,14 +1182,15 @@ h1, h2, h3, p { margin: 0; }
 .detail-hero {
   border-radius: var(--radius);
   overflow: hidden;
-  background: linear-gradient(135deg, var(--pink-100), var(--pink-200));
+  background: var(--pink-100);
   margin-bottom: 14px;
   display: grid;
   place-items: center;
   color: var(--pink-400);
-  border: 1px solid var(--line);
-  font-size: 13px;
-  min-height: 116px;
+  border: 1px solid var(--pink-200);
+  font-size: 12.5px;
+  min-height: 84px;
+  padding: 16px;
 }
 /* 有图时才用大图比例，没图就保持紧凑 */
 .detail-hero--has-image { aspect-ratio: auto; min-height: 0; display: block; padding: 0; position: relative; }
