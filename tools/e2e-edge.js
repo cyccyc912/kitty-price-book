@@ -26,12 +26,42 @@ const BASE = process.argv[2] || 'http://127.0.0.1:8899/index.html';
     ctx = await launch({ port: 9334, shotsDir });
     const { cdp } = ctx;
 
-    await cdp.send('Page.navigate', { url: BASE });
-    await sleep(2500);
+    /** 打开页面并等待应用就绪（线上加载慢，不能只靠固定 sleep） */
+    async function gotoApp(timeoutMs) {
+      const limit = timeoutMs || 40000;
+      await cdp.send('Page.navigate', { url: BASE });
+      const start = Date.now();
+      while (Date.now() - start < limit) {
+        await sleep(400);
+        try {
+          const ok = await cdp.eval(`!!(window.DB && document.getElementById('fab') && document.readyState === 'complete')`);
+          if (ok) { await sleep(500); return true; }
+        } catch (e) { /* 导航中 */ }
+      }
+      return false;
+    }
+
+    await gotoApp();
+
+    // 清掉上次残留，保证从干净状态开始
+    await cdp.eval(`(async () => {
+      await window.DB.clearAll();
+      await window.DB.setMeta('draft', null);
+      return 'ok';
+    })()`);
+    await gotoApp();
 
     // ---------- 空表单校验 ----------
+    // 等表单真正打开（含单卖项渲染完成），线上加载慢时固定 sleep 会误判
     await cdp.eval(`document.getElementById('fab').click(); 'ok'`);
-    await sleep(450);
+    for (let i = 0; i < 20; i++) {
+      await sleep(250);
+      const ready = await cdp.eval(`(() => {
+        const s = document.getElementById('sheet-form');
+        return !!(s && !s.hidden && document.getElementById('f-save'));
+      })()`);
+      if (ready) break;
+    }
     await cdp.eval(`document.getElementById('f-save').click(); 'ok'`);
     await sleep(500);
     const emptySave = await cdp.eval(`(() => ({

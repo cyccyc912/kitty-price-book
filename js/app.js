@@ -2146,9 +2146,15 @@
     });
   }
 
-  /* ============================================================
-     长按检测：触摸按住 500ms 且位移 < 10px 才触发
-     ============================================================ */
+  /* ---- 判断是否有弹层正开着（用于避免打断用户操作）---- */
+  function isAnySheetOpen() {
+    return ['form', 'detail', 'quick'].some(function (k) {
+      var s = document.getElementById('sheet-' + k);
+      return s && !s.hidden;
+    });
+  }
+
+  /* ---- 长按检测：触摸按住 500ms 且位移 < 10px 才触发 ---- */
   var LONG_PRESS_MS = 500;
   var LONG_PRESS_MOVE_TOLERANCE = 10;
 
@@ -2856,13 +2862,25 @@
      ============================================================ */
   var swRegistration = null;
   var refreshing = false;
+  // 页面加载时是否已经有一个 SW 在控制（首次安装时是 false）
+  var hadControllerAtBoot = false;
 
   function setupServiceWorker() {
     if (!('serviceWorker' in navigator) || !/^https?:$/.test(location.protocol)) return;
 
-    // 新 SW 接管后自动刷新一次（只刷一次，避免循环）
+    hadControllerAtBoot = !!navigator.serviceWorker.controller;
+
+    // 新 SW 接管后是否需要自动刷新：
+    // - 首次安装（原来没有 controller）：页面已经是新版，不需要刷新，
+    //   否则用户正在填的表单会被清空（曾经因为这个出过"表单自己关掉"的问题）
+    // - 版本更新（原来有 controller）：需要刷新才能用上新版
     navigator.serviceWorker.addEventListener('controllerchange', function () {
       if (refreshing) return;
+      if (!hadControllerAtBoot) return;          // 首次安装：不刷新
+      if (isAnySheetOpen()) {                    // 正在弹层里操作：不打断
+        showUpdateToast();
+        return;
+      }
       refreshing = true;
       location.reload();
     });
